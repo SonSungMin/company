@@ -26,10 +26,6 @@ namespace HHI.SHP.PS002.DCK.Excel
 
         private const Int64 _ColumnCont = 100000;
         private const Int64 _RowCont = 10000;
-
-        // 도형 ID와 이름을 관리하기 위한 클래스 변수를 선언
-        private uint currentShapeId = 1000; // 시작 ID 값
-        private int lineCounter = 1; // 라인 카운터
         #endregion
         public ExcelConvertOpenXML()
         {
@@ -262,25 +258,10 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape1 = CreateShape();
             shape1.Append(shapeProperties1);
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             cellAnchor.Append(shape1);
             cellAnchor.Append(new Xdr.ClientData());
 
-            // CellAnchor 오류 확인
-            if (!ValidateTwoCellAnchor(cellAnchor).StartsWith("OK"))
-            {
-
-            }
-
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(cellAnchor);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
         public void CreateLine(int fromCol, int fromRow, double fromColOffset, double fromRowOffset,
@@ -353,11 +334,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape3 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties3 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties3 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties3 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1028U, Name = "Line 4" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties3 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks3 = new A.ShapeLocks() { NoChangeShapeType = true };
@@ -393,25 +370,11 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape3.Append(shapeProperties3);
             Xdr.ClientData clientData3 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape3).StartsWith("OK"))
-            {
-
-            }
 
             cellAnchor.Append(shape3);
             cellAnchor.Append(clientData3);
-            
-            // CellAnchor 오류 확인
-            if (!ValidateTwoCellAnchor(cellAnchor).StartsWith("OK"))
-            {
-
-            }
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(cellAnchor);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
         /// <summary>
@@ -599,21 +562,12 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             twoCellAnchor1.Append(fromMarker1);
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(shape1);
             twoCellAnchor1.Append(clientData1);
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증 및 수정
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
         
@@ -801,22 +755,13 @@ namespace HHI.SHP.PS002.DCK.Excel
 
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
-
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
+            
             twoCellAnchor1.Append(fromMarker1);
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(shape1);
             twoCellAnchor1.Append(clientData1);
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
 
@@ -932,41 +877,13 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(shapeProperties1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             twoCellAnchor1.Append(fromMarker1);
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(shape1);
             twoCellAnchor1.Append(clientData1);
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
-
-        /// <summary>
-        /// 새로운 도형 ID 생성 메서드
-        /// </summary>
-        /// <returns></returns>
-        private uint GetNextShapeId()
-        {
-            return ++currentShapeId;
-        }
-
-        /// <summary>
-        /// 새로운 라인 이름 생성 메서드
-        /// </summary>
-        /// <returns></returns>
-        private string GetNextLineName()
-        {
-            return "Line " + (lineCounter++);
-        }
-
 
         public void CreateDArrowLine(int fromCol, int fromRow, double fromColOffset, double fromRowOffset,
             int toCol, int toRow, double toColOffset, double toRowOffset,
@@ -1009,11 +926,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape1 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties1 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties1 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties1 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1029U, Name = "Line 5" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties1 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks1 = new A.ShapeLocks() { NoChangeShapeType = true };
@@ -1062,12 +975,6 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(shapeProperties1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if(!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             twoCellAnchor1.Append(fromMarker1);
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(shape1);
@@ -1075,477 +982,9 @@ namespace HHI.SHP.PS002.DCK.Excel
 
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
         #endregion
-
-
-        public void CreateValidTwoCellAnchor(int fromCol, double fromColOffset, int fromRow, double fromRowOffset, int toCol, double toColOffset, int toRow, double toRowOffset)
-        {
-            return;
-            // 1. 드로잉 파트 추가 또는 가져오기
-            DrawingsPart drawingsPart;
-            if (_Worksheet.WorksheetPart.DrawingsPart == null)
-                CreateDrawingPart();
-            
-            drawingsPart = _Worksheet.WorksheetPart.DrawingsPart;
-
-            // 2. WorksheetDrawing 객체 생성 또는 가져오기
-            Xdr.WorksheetDrawing worksheetDrawing;
-            if (drawingsPart.WorksheetDrawing != null)
-            {
-                worksheetDrawing = drawingsPart.WorksheetDrawing;
-            }
-            else
-            {
-                worksheetDrawing = new Xdr.WorksheetDrawing();
-                worksheetDrawing.AddNamespaceDeclaration("xdr", "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing");
-                worksheetDrawing.AddNamespaceDeclaration("a", "http://schemas.openxmlformats.org/drawingml/2006/main");
-            }
-
-            // 3. TwoCellAnchor 생성
-            Xdr.TwoCellAnchor cellAnchor = new Xdr.TwoCellAnchor();
-            cellAnchor.EditAs = Xdr.EditAsValues.TwoCell;
-
-            // 4. FromMarker 생성
-            Xdr.FromMarker fromMarker = new Xdr.FromMarker();
-
-            // 값의 범위 확인 (음수나 너무 큰 값 방지)
-            fromMarker.Append(new Xdr.ColumnId() { Text = Math.Max(0, fromCol).ToString() });
-            fromMarker.Append(new Xdr.ColumnOffset()
-            {
-                Text = Math.Max(0, Math.Min(914400, (int)(fromColOffset * _ColumnCont))).ToString()
-            });
-            fromMarker.Append(new Xdr.RowId() { Text = Math.Max(0, fromRow).ToString() });
-            fromMarker.Append(new Xdr.RowOffset()
-            {
-                Text = Math.Max(0, Math.Min(914400, (int)(fromRowOffset * _RowCont))).ToString()
-            });
-
-            // 5. ToMarker 생성
-            Xdr.ToMarker toMarker = new Xdr.ToMarker();
-
-            toMarker.Append(new Xdr.ColumnId() { Text = Math.Max(0, toCol).ToString() });
-            toMarker.Append(new Xdr.ColumnOffset()
-            {
-                Text = Math.Max(0, Math.Min(914400, (int)(toColOffset * _ColumnCont))).ToString()
-            });
-            toMarker.Append(new Xdr.RowId() { Text = Math.Max(0, toRow).ToString() });
-            toMarker.Append(new Xdr.RowOffset()
-            {
-                Text = Math.Max(0, Math.Min(914400, (int)(toRowOffset * _RowCont))).ToString()
-            });
-
-            // 6. Marker들을 TwoCellAnchor에 추가
-            cellAnchor.Append(fromMarker);
-            cellAnchor.Append(toMarker);
-
-            // 7. Shape 생성
-            Xdr.Shape shape = new Xdr.Shape();
-
-            // 8. NonVisualShapeProperties 설정
-            uint shapeId = 1;
-
-            // 기존 요소의 ID 중 가장 큰 값 + 1을 사용
-            if (worksheetDrawing.ChildElements.Count > 0)
-            {
-                foreach (var anchor in worksheetDrawing.ChildElements)
-                {
-                    foreach (var element in anchor.ChildElements)
-                    {
-                        if (element is Xdr.Shape)
-                        {
-                            var existingShape = element as Xdr.Shape;
-                            var nvProps = existingShape.GetFirstChild<Xdr.NonVisualShapeProperties>();
-                            if (nvProps != null)
-                            {
-                                var drawingProps = nvProps.GetFirstChild<Xdr.NonVisualDrawingProperties>();
-                                if (drawingProps != null && drawingProps.Id != null)
-                                {
-                                    shapeId = Math.Max(shapeId, drawingProps.Id + 1);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            var nvShapeProps = new Xdr.NonVisualShapeProperties(
-                new Xdr.NonVisualDrawingProperties() { Id = shapeId, Name = $"Shape {shapeId}" },
-                new Xdr.NonVisualShapeDrawingProperties(
-                    new DocumentFormat.OpenXml.Drawing.ShapeLocks() { NoGrouping = true }
-                )
-            );
-            shape.Append(nvShapeProps);
-
-            // 9. ShapeProperties 설정
-            var shapeProps = new Xdr.ShapeProperties();
-
-            // 10. Transform2D 설정 (선택사항)
-            var transform = new DocumentFormat.OpenXml.Drawing.Transform2D();
-            transform.Append(new DocumentFormat.OpenXml.Drawing.Offset() { X = 0, Y = 0 });
-            transform.Append(new DocumentFormat.OpenXml.Drawing.Extents() { Cx = 914400, Cy = 914400 });
-            shapeProps.Append(transform);
-
-            // 11. 도형 타입 설정 (사각형)
-            var presetGeometry = new DocumentFormat.OpenXml.Drawing.PresetGeometry()
-            {
-                Preset = DocumentFormat.OpenXml.Drawing.ShapeTypeValues.Rectangle
-            };
-            presetGeometry.Append(new DocumentFormat.OpenXml.Drawing.AdjustValueList());
-            shapeProps.Append(presetGeometry);
-
-            // 12. 도형 채우기 설정
-            shapeProps.Append(new DocumentFormat.OpenXml.Drawing.SolidFill(
-                new DocumentFormat.OpenXml.Drawing.RgbColorModelHex() { Val = "FF0000" }
-            ));
-
-            // 13. 도형 테두리 설정
-            var outline = new DocumentFormat.OpenXml.Drawing.Outline() { Width = 9525 }; // 1pt
-            outline.Append(new DocumentFormat.OpenXml.Drawing.SolidFill(
-                new DocumentFormat.OpenXml.Drawing.RgbColorModelHex() { Val = "000000" }
-            ));
-            shapeProps.Append(outline);
-
-            shape.Append(shapeProps);
-
-            // 14. TwoCellAnchor에 Shape 추가
-            cellAnchor.Append(shape);
-
-            // 15. 필수 ClientData 추가
-            cellAnchor.Append(new Xdr.ClientData());
-
-            // 16. 드로잉에 TwoCellAnchor 추가
-            worksheetDrawing.Append(cellAnchor);
-
-            // 17. 드로잉 저장
-            //drawingsPart.WorksheetDrawing = worksheetDrawing;
-        }
-
-
-        public string ValidateTwoCellAnchor(Xdr.TwoCellAnchor cellAnchor)
-        {
-            bool isValid = true;
-            string msg = "";
-
-            // 1. FromMarker와 ToMarker가 존재하는지 확인
-            var fromMarker = cellAnchor.GetFirstChild<Xdr.FromMarker>();
-            if (fromMarker == null)
-            {
-                msg = "오류: FromMarker가 없습니다. TwoCellAnchor는 반드시 FromMarker를 포함해야 합니다.";
-                isValid = false;
-            }
-            else
-            {
-                // FromMarker 내부 요소 검증
-                var columnId = fromMarker.GetFirstChild<Xdr.ColumnId>();
-                var columnOffset = fromMarker.GetFirstChild<Xdr.ColumnOffset>();
-                var rowId = fromMarker.GetFirstChild<Xdr.RowId>();
-                var rowOffset = fromMarker.GetFirstChild<Xdr.RowOffset>();
-
-                if (columnId == null || string.IsNullOrEmpty(columnId.Text))
-                {
-                    msg += "오류: FromMarker의 ColumnId가 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-
-                if (columnOffset == null || string.IsNullOrEmpty(columnOffset.Text))
-                {
-                    msg += "오류: FromMarker의 ColumnOffset이 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-                else if (!int.TryParse(columnOffset.Text, out _))
-                {
-                    msg += $"오류: FromMarker의 ColumnOffset({columnOffset.Text})이 유효한 정수가 아닙니다.";
-                    isValid = false;
-                }
-
-                if (rowId == null || string.IsNullOrEmpty(rowId.Text))
-                {
-                    msg += "오류: FromMarker의 RowId가 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-
-                if (rowOffset == null || string.IsNullOrEmpty(rowOffset.Text))
-                {
-                    msg += "오류: FromMarker의 RowOffset이 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-                else if (!int.TryParse(rowOffset.Text, out _))
-                {
-                    msg += $"오류: FromMarker의 RowOffset({rowOffset.Text})이 유효한 정수가 아닙니다.";
-                    isValid = false;
-                }
-            }
-
-            var toMarker = cellAnchor.GetFirstChild<Xdr.ToMarker>();
-            if (toMarker == null)
-            {
-                msg += "오류: ToMarker가 없습니다. TwoCellAnchor는 반드시 ToMarker를 포함해야 합니다.";
-                isValid = false;
-            }
-            else
-            {
-                // ToMarker 내부 요소 검증
-                var columnId = toMarker.GetFirstChild<Xdr.ColumnId>();
-                var columnOffset = toMarker.GetFirstChild<Xdr.ColumnOffset>();
-                var rowId = toMarker.GetFirstChild<Xdr.RowId>();
-                var rowOffset = toMarker.GetFirstChild<Xdr.RowOffset>();
-
-                if (columnId == null || string.IsNullOrEmpty(columnId.Text))
-                {
-                    msg += "오류: ToMarker의 ColumnId가 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-
-                if (columnOffset == null || string.IsNullOrEmpty(columnOffset.Text))
-                {
-                    msg += "오류: ToMarker의 ColumnOffset이 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-                else if (!int.TryParse(columnOffset.Text, out _))
-                {
-                    msg += $"오류: ToMarker의 ColumnOffset({columnOffset.Text})이 유효한 정수가 아닙니다.";
-                    isValid = false;
-                }
-
-                if (rowId == null || string.IsNullOrEmpty(rowId.Text))
-                {
-                    msg += "오류: ToMarker의 RowId가 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-
-                if (rowOffset == null || string.IsNullOrEmpty(rowOffset.Text))
-                {
-                    msg += "오류: ToMarker의 RowOffset이 없거나 비어 있습니다.";
-                    isValid = false;
-                }
-                else if (!int.TryParse(rowOffset.Text, out _))
-                {
-                    msg += $"오류: ToMarker의 RowOffset({rowOffset.Text})이 유효한 정수가 아닙니다.";
-                    isValid = false;
-                }
-            }
-
-            // 2. 위치 값의 논리적 일관성 검증
-            if (fromMarker != null && toMarker != null)
-            {
-                int fromCol, fromRow, toCol, toRow;
-
-                if (int.TryParse(fromMarker.GetFirstChild<Xdr.ColumnId>()?.Text, out fromCol) &&
-                    int.TryParse(fromMarker.GetFirstChild<Xdr.RowId>()?.Text, out fromRow) &&
-                    int.TryParse(toMarker.GetFirstChild<Xdr.ColumnId>()?.Text, out toCol) &&
-                    int.TryParse(toMarker.GetFirstChild<Xdr.RowId>()?.Text, out toRow))
-                {
-                    // 일반적으로 from 위치는 to 위치보다 작거나 같아야 함
-                    if (fromCol > toCol)
-                    {
-                        msg += $"경고: FromMarker 열({fromCol})이 ToMarker 열({toCol})보다 큽니다.";
-                    }
-
-                    if (fromRow > toRow)
-                    {
-                        msg += $"경고: FromMarker 행({fromRow})이 ToMarker 행({toRow})보다 큽니다.";
-                    }
-                }
-            }
-
-            // 3. 자식 요소가 올바른 순서로 있는지 확인
-            var childrenTypes = cellAnchor.ChildElements.Select(e => e.GetType().Name).ToList();
-            msg += $"TwoCellAnchor 자식 요소 순서: {string.Join(", ", childrenTypes)}";
-
-            // 4. ClientData가 있는지 확인 
-            if (cellAnchor.GetFirstChild<Xdr.ClientData>() == null)
-            {
-                msg += "오류: ClientData가 없습니다. TwoCellAnchor는 반드시 ClientData를 포함해야 합니다.";
-                isValid = false;
-            }
-
-            // 5. EditAs 속성 확인 (선택적)
-            if (cellAnchor.EditAs != null)
-            {
-                var validValues = new[] { "oneCell", "twoCell", "absolute" };
-                if (!validValues.Contains(cellAnchor.EditAs.Value.ToString()))
-                {
-                    Console.WriteLine($"경고: EditAs 값({cellAnchor.EditAs.Value})이 유효하지 않습니다. 유효한 값: {string.Join(", ", validValues)}");
-                }
-            }
-
-            // 6. 오프셋 범위 확인 
-            // (EMU 단위로 0~914400 사이의 값이 일반적, 914400 EMU = 1 인치)
-            if (fromMarker != null)
-            {
-                var colOffset = fromMarker.GetFirstChild<Xdr.ColumnOffset>();
-                var rowOffset = fromMarker.GetFirstChild<Xdr.RowOffset>();
-
-                if (colOffset != null && int.TryParse(colOffset.Text, out int colOffsetValue))
-                {
-                    if (colOffsetValue < 0 || colOffsetValue > 914400)
-                    {
-                        Console.WriteLine($"경고: FromMarker의 ColumnOffset({colOffsetValue})이 일반적인 범위(0~914400)를 벗어납니다.");
-                    }
-                }
-
-                if (rowOffset != null && int.TryParse(rowOffset.Text, out int rowOffsetValue))
-                {
-                    if (rowOffsetValue < 0 || rowOffsetValue > 914400)
-                    {
-                        Console.WriteLine($"경고: FromMarker의 RowOffset({rowOffsetValue})이 일반적인 범위(0~914400)를 벗어납니다.");
-                    }
-                }
-            }
-
-            // 7. Shape나 다른 도형 요소가 있는지 확인
-            bool hasValidDrawingElement = false;
-
-            if (cellAnchor.GetFirstChild<Xdr.Shape>() != null)
-            {
-                hasValidDrawingElement = true;
-            }
-            else if (cellAnchor.GetFirstChild<Xdr.Picture>() != null)
-            {
-                hasValidDrawingElement = true;
-            }
-            else if (cellAnchor.GetFirstChild<Xdr.GraphicFrame>() != null)
-            {
-                hasValidDrawingElement = true;
-            }
-            else if (cellAnchor.GetFirstChild<Xdr.GroupShape>() != null)
-            {
-                hasValidDrawingElement = true;
-            }
-            else if (cellAnchor.GetFirstChild<Xdr.ConnectionShape>() != null)
-            {
-                hasValidDrawingElement = true;
-            }
-
-            if (!hasValidDrawingElement)
-            {
-                Console.WriteLine("오류: TwoCellAnchor에 유효한 도형 요소(Shape, Picture, GraphicFrame, GroupShape, ConnectionShape)가 없습니다.");
-                isValid = false;
-            }
-
-            if(!isValid)
-            {
-
-            }
-
-            return msg;
-        }
-
-        public string CheckAndFixRequiredShapeElements(Xdr.Shape shape)
-        {
-            bool wasFixed = false;
-            string msg = "OK";
-
-            // NonVisualShapeProperties 체크 및 수정
-            if (shape.GetFirstChild<Xdr.NonVisualShapeProperties>() == null)
-            {
-                msg = "오류 감지: NonVisualShapeProperties가 없습니다. 기본값으로 추가합니다.";
-
-                var nvProps = new Xdr.NonVisualShapeProperties(
-                    new Xdr.NonVisualDrawingProperties() { Id = 1, Name = "Shape 1" },
-                    new Xdr.NonVisualShapeDrawingProperties(
-                        new DocumentFormat.OpenXml.Drawing.ShapeLocks() { NoGrouping = true }
-                    )
-                );
-
-                shape.Append(nvProps);
-                wasFixed = true;
-            }
-            else
-            {
-                // NonVisualDrawingProperties ID 체크
-                var nvDrawProps = shape.GetFirstChild<Xdr.NonVisualShapeProperties>()?.GetFirstChild<Xdr.NonVisualDrawingProperties>();
-                if (nvDrawProps == null)
-                {
-                    msg = "오류 감지: NonVisualDrawingProperties가 없습니다. 기본값으로 추가합니다.";
-
-                    var newNvDrawProps = new Xdr.NonVisualDrawingProperties() { Id = 1, Name = "Shape 1" };
-                    shape.GetFirstChild<Xdr.NonVisualShapeProperties>().Append(newNvDrawProps);
-                    wasFixed = true;
-                }
-                else if (nvDrawProps.Id == 0)
-                {
-                    msg = "오류 감지: Shape ID가 설정되지 않았습니다. 기본값(1)으로 설정합니다.";
-                    nvDrawProps.Id = 1;
-                    wasFixed = true;
-                }
-            }
-
-            // ShapeProperties 체크 및 수정
-            var shapeProps = shape.GetFirstChild<Xdr.ShapeProperties>();
-            if (shapeProps == null)
-            {
-                msg += "오류 감지: ShapeProperties가 없습니다. 기본값으로 추가합니다.";
-                shapeProps = new Xdr.ShapeProperties();
-                shape.Append(shapeProps);
-                wasFixed = true;
-            }
-
-            // Transform2D 체크 및 수정
-            var transform = shapeProps.GetFirstChild<DocumentFormat.OpenXml.Drawing.Transform2D>();
-            if (transform == null)
-            {
-                msg += "오류 감지: Transform2D가 없습니다. 기본값으로 추가합니다.";
-
-                transform = new DocumentFormat.OpenXml.Drawing.Transform2D();
-                transform.Append(new DocumentFormat.OpenXml.Drawing.Offset() { X = 0, Y = 0 });
-                transform.Append(new DocumentFormat.OpenXml.Drawing.Extents() { Cx = 914400, Cy = 914400 });
-
-                shapeProps.Append(transform);
-                wasFixed = true;
-            }
-
-            // Geometry 체크 및 수정
-            var presetGeometry = shapeProps.GetFirstChild<DocumentFormat.OpenXml.Drawing.PresetGeometry>();
-            var customGeometry = shapeProps.GetFirstChild<DocumentFormat.OpenXml.Drawing.CustomGeometry>();
-
-            if (presetGeometry == null && customGeometry == null)
-            {
-                msg += "오류 감지: Geometry 정보가 없습니다. 기본 사각형으로 설정합니다.";
-
-                presetGeometry = new DocumentFormat.OpenXml.Drawing.PresetGeometry()
-                {
-                    Preset = DocumentFormat.OpenXml.Drawing.ShapeTypeValues.Rectangle
-                };
-                presetGeometry.Append(new DocumentFormat.OpenXml.Drawing.AdjustValueList());
-
-                shapeProps.Append(presetGeometry);
-                wasFixed = true;
-            }
-
-            // 앵커 설정 확인
-            var anchor = shape.Parent as Xdr.AbsoluteAnchor; // 또는 TwoCellAnchor, OneCellAnchor
-            if (anchor != null)
-            {
-                // ClientData가 없는 경우 추가
-                if (anchor.GetFirstChild<Xdr.ClientData>() == null)
-                {
-                    msg += "앵커에 ClientData가 없습니다. 추가합니다.";
-                    anchor.Append(new Xdr.ClientData());
-                }
-            }
-
-            if (wasFixed)
-            {
-                msg += "Shape 요소들이 자동으로 수정되었습니다. 검증 성공.";
-            }
-            else
-            {
-                msg += "OK-모든 필수 요소가 올바르게 설정되어 있습니다.";
-            }
-
-            if(!msg.StartsWith("OK"))
-            {
-            }
-
-            return msg;
-        }
-
 
         #region private methods
 
@@ -2195,11 +1634,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape2 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties2 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties3 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties3 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1036U, Name = "Line 12" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties2 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks2 = new A.ShapeLocks() { NoChangeShapeType = true };
@@ -2250,11 +1685,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape3 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties3 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties4 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties4 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1037U, Name = "Line 13" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties3 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks3 = new A.ShapeLocks() { NoChangeShapeType = true };
@@ -2302,22 +1733,6 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape3.Append(nonVisualShapeProperties3);
             shape3.Append(shapeProperties3);
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape2).StartsWith("OK"))
-            {
-
-            }
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape3).StartsWith("OK"))
-            {
-
-            }
-
             groupShape1.Append(nonVisualGroupShapeProperties1);
             groupShape1.Append(groupShapeProperties1);
             groupShape1.Append(shape1);
@@ -2329,18 +1744,10 @@ namespace HHI.SHP.PS002.DCK.Excel
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(groupShape1);
             twoCellAnchor1.Append(clientData1);
-            
-            // CellAnchor 오류 확인
-            if (!ValidateTwoCellAnchor(twoCellAnchor1).StartsWith("OK"))
-            {
 
-            }
+
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
-
             if (netDay)
             {
                 DrawingsDayTextBox(leftText, posX + 5, posY + 5, TextAlignmentTypeValues.Right);
@@ -2351,7 +1758,6 @@ namespace HHI.SHP.PS002.DCK.Excel
             }
             DrawingsDayTextBox(rightText, posX + 25, posY + 5, TextAlignmentTypeValues.Left);
             DrawingsBottomTextBox1(bottomText, posX, posY + 25);
-
             return nonVisualDrawingProperties1.Id;
 
         }
@@ -2520,11 +1926,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape2 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties2 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties3 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties3 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1031U, Name = "Line 12" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties2 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks2 = new A.ShapeLocks() { NoChangeAspect = true, NoChangeShapeType = true };
@@ -2575,11 +1977,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape3 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties3 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties4 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties4 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1032U, Name = "Line 13" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties3 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks3 = new A.ShapeLocks() { NoChangeAspect = true, NoChangeShapeType = true };
@@ -2627,24 +2025,6 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape3.Append(nonVisualShapeProperties3);
             shape3.Append(shapeProperties3);
 
-
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape2).StartsWith("OK"))
-            {
-
-            }
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape3).StartsWith("OK"))
-            {
-
-            }
-
-
             groupShape1.Append(nonVisualGroupShapeProperties1);
             groupShape1.Append(groupShapeProperties1);
             groupShape1.Append(shape1);
@@ -2658,16 +2038,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             twoCellAnchor1.Append(clientData1);
 
 
-            // CellAnchor 오류 확인
-            if (!ValidateTwoCellAnchor(twoCellAnchor1).StartsWith("OK"))
-            {
-
-            }
-
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
 
             if (netDay)
             {
@@ -2799,11 +2170,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape1 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties1 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties1 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties1 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1025U, Name = "Line 1" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties1 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks1 = new A.ShapeLocks() { NoChangeShapeType = true };
@@ -2852,21 +2219,12 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(shapeProperties1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             twoCellAnchor1.Append(fromMarker1);
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(shape1);
             twoCellAnchor1.Append(clientData1);
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
         /// <summary>
@@ -3029,6 +2387,9 @@ namespace HHI.SHP.PS002.DCK.Excel
             connectionShape1.Append(shapeProperties3);
             Xdr.ClientData clientData3 = new Xdr.ClientData();
 
+
+
+
             twoCellAnchor3.Append(fromMarker3);
             twoCellAnchor3.Append(toMarker3);
             twoCellAnchor3.Append(connectionShape1);
@@ -3037,8 +2398,6 @@ namespace HHI.SHP.PS002.DCK.Excel
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor3);
 
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
 
@@ -3171,21 +2530,14 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             oneCellAnchor1.Append(fromMarker1);
             oneCellAnchor1.Append(extent1);
             oneCellAnchor1.Append(shape1);
             oneCellAnchor1.Append(clientData1);
 
-            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
 
-            // 검증
-            //CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
+
+            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
         }
 
         public void DrawingsTextBox(int fromCol, double fromColOffset, int fromRow, double fromRowOffset, string pitchText)
@@ -3310,21 +2662,14 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             oneCellAnchor1.Append(fromMarker1);
             oneCellAnchor1.Append(extent1);
             oneCellAnchor1.Append(shape1);
             oneCellAnchor1.Append(clientData1);
 
-            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
 
-            // 검증
-            //CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
+
+            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
         }
 
         /// <summary>
@@ -3456,22 +2801,14 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(shapeProperties1);
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
-            
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
 
             oneCellAnchor1.Append(fromMarker1);
             oneCellAnchor1.Append(extent1);
             oneCellAnchor1.Append(shape1);
             oneCellAnchor1.Append(clientData1);
 
-            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
 
-            // 검증
-            //CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
+            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
         }
 
         /// <summary>
@@ -3617,21 +2954,12 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             twoCellAnchor1.Append(fromMarker1);
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(shape1);
             twoCellAnchor1.Append(clientData1);
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
 
@@ -3771,21 +3099,12 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             twoCellAnchor1.Append(fromMarker1);
             twoCellAnchor1.Append(toMarker1);
             twoCellAnchor1.Append(shape1);
             twoCellAnchor1.Append(clientData1);
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
-
-            // 검증
-            CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
         /// <summary>
@@ -3918,21 +3237,14 @@ namespace HHI.SHP.PS002.DCK.Excel
             shape1.Append(textBody1);
             Xdr.ClientData clientData1 = new Xdr.ClientData();
 
-            // Shape 오류 확인
-            if (!CheckAndFixRequiredShapeElements(shape1).StartsWith("OK"))
-            {
-
-            }
-
             oneCellAnchor1.Append(fromMarker1);
             oneCellAnchor1.Append(extent1);
             oneCellAnchor1.Append(shape1);
             oneCellAnchor1.Append(clientData1);
 
-            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
 
-            // 검증
-            //CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
+
+            _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(oneCellAnchor1);
         }
 
 
@@ -4473,11 +3785,7 @@ namespace HHI.SHP.PS002.DCK.Excel
             Xdr.Shape shape7 = new Xdr.Shape() { Macro = "", TextLink = "" };
 
             Xdr.NonVisualShapeProperties nonVisualShapeProperties7 = new Xdr.NonVisualShapeProperties();
-            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties8 = new Xdr.NonVisualDrawingProperties()
-            {
-                Id = (UInt32Value)GetNextShapeId(),
-                Name = GetNextLineName()
-            };
+            Xdr.NonVisualDrawingProperties nonVisualDrawingProperties8 = new Xdr.NonVisualDrawingProperties() { Id = (UInt32Value)1031U, Name = "Line 339" };
 
             Xdr.NonVisualShapeDrawingProperties nonVisualShapeDrawingProperties7 = new Xdr.NonVisualShapeDrawingProperties();
             A.ShapeLocks shapeLocks7 = new A.ShapeLocks() { NoChangeShapeType = true };
@@ -4881,8 +4189,6 @@ namespace HHI.SHP.PS002.DCK.Excel
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
 
-            // 검증
-            //CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
 
@@ -5713,8 +5019,6 @@ namespace HHI.SHP.PS002.DCK.Excel
 
             _Worksheet.WorksheetPart.DrawingsPart.WorksheetDrawing.Append(twoCellAnchor1);
 
-            // 검증
-            //CreateValidTwoCellAnchor(fromCol, fromColOffset, fromRow, fromRowOffset, toCol, toColOffset, toRow, toRowOffset);
         }
 
         /// <summary>
