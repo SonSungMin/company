@@ -1,0 +1,306 @@
+WITH /*+ NO_MERGE */ G41 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'G'
+            AND WRK_TYP = '41'
+        ),
+        /*+ NO_MERGE */ F21 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'F'
+            AND WRK_TYP = '21'
+        ),
+        /*+ NO_MERGE */ H32 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'H'
+            AND WRK_TYP = '32'
+        ),
+        /*+ NO_MERGE */ JX1 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'J'
+            AND WRK_TYP = 'X1'
+        ),
+        /*+ NO_MERGE */ K41 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'K'
+            AND WRK_TYP = '41'
+        ),
+        /*+ NO_MERGE */ L32 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'L'
+            AND WRK_TYP = '32'
+        ),
+        /*+ NO_MERGE */ L41 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'L'
+            AND WRK_TYP = '41'
+        ),
+        /*+ NO_MERGE */ N41 AS
+        (
+         SELECT FIG_NO, FIG_SHP, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+           FROM C62A.TSEG005_TMP
+          WHERE FIG_NO = &I_FIG_NO
+            AND WRK_STG = 'N'
+            AND WRK_TYP = '41'
+        )
+        SELECT FIG_NO, SEQ, FIG_SHP, SHP_COD, DCK_COD, ASM_BLK, TYP_COD, TYP_DSC, ACT_COD, DPT_COD, DPT_NM, 
+               PLN_ST, PLN_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI, EST_ST, EST_FI, ZZACT_ATTRIB, BLKNO, 
+               LAG (ACT_COD) OVER(PARTITION BY FIG_NO, FIG_SHP, ASM_BLK ORDER BY SEQ) AS PRE_ACT_COD, 
+               LEAD(ACT_COD) OVER(PARTITION BY FIG_NO, FIG_SHP, ASM_BLK ORDER BY SEQ) AS AFT_ACT_COD, RUNDTE
+          FROM (
+                SELECT ROW_NUMBER() OVER (PARTITION BY T.FIG_NO, T.FIG_SHP, T.ASM_BLK ORDER BY T.PLN_ST, T.PLN_FI, T.TYP_COD) AS SEQ, 
+                       T.FIG_NO, T.FIG_SHP, T.SHP_COD, T.DCK_COD, T.ASM_BLK, T.TYP_COD, T.TYP_DSC, T.ACT_COD, T.DPT_COD, T.DPT_NM, 
+                       T.PLN_ST, T.PLN_FI, T.NET_ST, T.NET_FI, T.QM_NET_ST, T.QM_NET_FI, T.EST_ST, T.EST_FI, T.ZZACT_ATTRIB, 
+                       BLKNO, TO_CHAR(SYSDATE, 'YYYYMMDDHH24MI') RUNDTE
+                  FROM (
+                        SELECT T.FIG_NO, T.FIG_SHP, T.DCK_COD, T.SHP_COD, T.ASM_BLK, T.GBN TYP_COD, T.DSC TYP_DSC
+                               ,CASE T.GBN WHEN 'C11' THEN T.PLN_ST
+                                           WHEN 'G41' THEN A.PLN_ST
+                                           WHEN 'F21' THEN B.PLN_ST
+                                           WHEN 'H32' THEN C.PLN_ST
+                                           WHEN 'JX1' THEN D.PLN_ST
+                                           WHEN 'K41' THEN E.PLN_ST
+                                           WHEN 'L32' THEN E1.PLN_ST
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.PLN_ST ELSE T.HBLOCK.RPLN_SDTE END
+                                           WHEN 'N41' THEN G.PLN_ST
+                                           ELSE NULL  END  PLN_ST
+                               ,CASE T.GBN WHEN 'C11' THEN T.PLN_FI
+                                           WHEN 'G41' THEN A.PLN_FI
+                                           WHEN 'F21' THEN B.PLN_FI
+                                           WHEN 'H32' THEN C.PLN_FI
+                                           WHEN 'JX1' THEN D.PLN_FI
+                                           WHEN 'K41' THEN E.PLN_FI
+                                           WHEN 'L32' THEN E1.PLN_FI
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.PLN_FI ELSE T.HBLOCK.RPLN_FDTE END
+                                           WHEN 'N41' THEN G.PLN_FI
+                                           ELSE NULL  END  PLN_FI
+                               ,CASE T.GBN WHEN 'C11' THEN T.ASM_BLK
+                                           WHEN 'G41' THEN T.G41_BLK
+                                           WHEN 'F21' THEN T.F21_BLK
+                                           WHEN 'H32' THEN T.H32_BLK
+                                           WHEN 'JX1' THEN T.JX1_BLK
+                                           WHEN 'K41' THEN T.K41_BLK
+                                           WHEN 'L32' THEN T.L32_BLK
+                                           WHEN 'L41' THEN T.L41_BLK
+                                           WHEN 'N41' THEN T.N41_BLK
+                                           ELSE NULL  END  BLKNO
+                               ,CASE T.GBN WHEN 'C11' THEN T.ACT_COD
+                                           WHEN 'G41' THEN DECODE(T.G41_BLK, NULL, NULL, RPAD(T.G41_BLK||'G41000', 13, ' '))
+                                           WHEN 'F21' THEN DECODE(T.F21_BLK, NULL, NULL, RPAD(T.F21_BLK||'F21000', 13, ' '))
+                                           WHEN 'H32' THEN DECODE(T.H32_BLK, NULL, NULL, RPAD(T.H32_BLK||'H32000', 13, ' '))
+                                           WHEN 'JX1' THEN DECODE(T.JX1_BLK, NULL, NULL, RPAD(T.JX1_BLK||'JX1000', 13, ' '))
+                                           WHEN 'K41' THEN DECODE(T.K41_BLK, NULL, NULL, RPAD(T.K41_BLK||'K41000', 13, ' '))
+                                           WHEN 'L32' THEN DECODE(T.L41_BLK, NULL, NULL, RPAD(T.L41_BLK||'L32000', 13, ' '))
+                                           WHEN 'L41' THEN DECODE(T.L41_BLK, NULL, NULL, RPAD(T.L41_BLK||'L41000', 13, ' '))
+                                           WHEN 'N41' THEN DECODE(T.N41_BLK, NULL, NULL, RPAD(T.N41_BLK||'N41000', 13, ' '))
+                                           ELSE NULL  END  ACT_COD
+                               ,CASE T.GBN WHEN 'C11' THEN T.DPT_COD
+                                           WHEN 'G41' THEN A.DPT_COD
+                                           WHEN 'F21' THEN B.DPT_COD
+                                           WHEN 'H32' THEN C.DPT_COD
+                                           WHEN 'JX1' THEN D.DPT_COD
+                                           WHEN 'K41' THEN E.DPT_COD
+                                           WHEN 'L32' THEN E1.DPT_COD
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.DPT_COD ELSE T.HBLOCK.RPLN_STG END
+                                           WHEN 'N41' THEN G.DPT_COD
+                                           ELSE NULL  END  DPT_COD
+                               ,CASE T.GBN WHEN 'C11' THEN DECODE(T.DPT_COD, NULL, NULL, OPT.FC_GET_DPTNAME(T.DPT_COD))
+                                           WHEN 'G41' THEN DECODE(A.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(A.DPT_COD))
+                                           WHEN 'F21' THEN DECODE(B.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(B.DPT_COD))
+                                           WHEN 'H32' THEN DECODE(C.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(C.DPT_COD))
+                                           WHEN 'JX1' THEN DECODE(D.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(D.DPT_COD))
+                                           WHEN 'K41' THEN DECODE(E.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(E.DPT_COD))
+                                           WHEN 'L32' THEN DECODE(E1.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(E1.DPT_COD))
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN DECODE(F.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(F.DPT_COD)) ELSE OPT.FC_GET_DPTNAME(T.HBLOCK.RPLN_STG) END 
+                                           WHEN 'N41' THEN DECODE(G.DPT_COD_OR, NULL, NULL, OPT.FC_GET_DPTNAME(G.DPT_COD))
+                                           ELSE NULL  END  DPT_NM
+                               ,CASE T.GBN WHEN 'C11' THEN T.NET_ST
+                                           WHEN 'G41' THEN A.NET_ST
+                                           WHEN 'F21' THEN B.NET_ST
+                                           WHEN 'H32' THEN C.NET_ST
+                                           WHEN 'JX1' THEN D.NET_ST
+                                           WHEN 'K41' THEN E.NET_ST
+                                           WHEN 'L32' THEN E1.NET_ST
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.NET_ST ELSE T.HBLOCK.NET_ST END
+                                           WHEN 'N41' THEN G.NET_ST
+                                           ELSE NULL  END  NET_ST
+                               ,CASE T.GBN WHEN 'C11' THEN T.NET_FI
+                                           WHEN 'G41' THEN A.NET_FI
+                                           WHEN 'F21' THEN B.NET_FI
+                                           WHEN 'H32' THEN C.NET_FI
+                                           WHEN 'JX1' THEN D.NET_FI
+                                           WHEN 'K41' THEN E.NET_FI
+                                           WHEN 'L32' THEN E1.NET_FI
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.NET_FI ELSE T.HBLOCK.NET_FI END
+                                           WHEN 'N41' THEN G.NET_FI
+                                           ELSE NULL  END  NET_FI
+                               ,CASE T.GBN WHEN 'C11' THEN T.QM_NET_ST
+                                           WHEN 'G41' THEN A.QM_NET_ST
+                                           WHEN 'F21' THEN B.QM_NET_ST
+                                           WHEN 'H32' THEN C.QM_NET_ST
+                                           WHEN 'JX1' THEN D.QM_NET_ST
+                                           WHEN 'K41' THEN E.QM_NET_ST
+                                           WHEN 'L32' THEN E1.QM_NET_ST
+                                           WHEN 'L41' THEN F.QM_NET_ST
+                                           WHEN 'N41' THEN G.QM_NET_ST
+                                           ELSE NULL  END  QM_NET_ST
+                               ,CASE T.GBN WHEN 'C11' THEN T.QM_NET_FI
+                                           WHEN 'G41' THEN A.QM_NET_FI
+                                           WHEN 'F21' THEN B.QM_NET_FI
+                                           WHEN 'H32' THEN C.QM_NET_FI
+                                           WHEN 'JX1' THEN D.QM_NET_FI
+                                           WHEN 'K41' THEN E.QM_NET_FI
+                                           WHEN 'L32' THEN E1.QM_NET_FI
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.QM_NET_FI ELSE T.HBLOCK.NET_FI END
+                                           WHEN 'N41' THEN G.QM_NET_FI
+                                           ELSE NULL  END  QM_NET_FI
+                               ,CASE T.GBN WHEN 'C11' THEN T.EST_ST
+                                           WHEN 'G41' THEN A.EST_ST
+                                           WHEN 'F21' THEN B.EST_ST
+                                           WHEN 'H32' THEN C.EST_ST
+                                           WHEN 'JX1' THEN D.EST_ST
+                                           WHEN 'K41' THEN E.EST_ST
+                                           WHEN 'L32' THEN E1.EST_ST
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.EST_ST ELSE T.HBLOCK.EST_ST END
+                                           WHEN 'N41' THEN G.EST_ST
+                                           ELSE NULL  END  EST_ST
+                               ,CASE T.GBN WHEN 'C11' THEN T.EST_FI
+                                           WHEN 'G41' THEN A.EST_FI
+                                           WHEN 'F21' THEN B.EST_FI
+                                           WHEN 'H32' THEN C.EST_FI
+                                           WHEN 'JX1' THEN D.EST_FI
+                                           WHEN 'K41' THEN E.EST_FI
+                                           WHEN 'L32' THEN E1.EST_FI
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.EST_FI ELSE T.HBLOCK.EST_FI END
+                                           WHEN 'N41' THEN G.EST_FI
+                                           ELSE NULL  END  EST_FI
+                               ,CASE T.GBN WHEN 'C11' THEN T.ACT_TYP
+                                           WHEN 'G41' THEN A.ACT_TYP
+                                           WHEN 'F21' THEN B.ACT_TYP
+                                           WHEN 'H32' THEN C.ACT_TYP
+                                           WHEN 'JX1' THEN D.ACT_TYP
+                                           WHEN 'K41' THEN E.ACT_TYP
+                                           WHEN 'L32' THEN E1.ACT_TYP
+                                           WHEN 'L41' THEN CASE WHEN T.HBLOCK.RPLN_SDTE IS NULL THEN F.ACT_TYP ELSE T.HBLOCK.ZZACT_ATTRIB END
+                                           WHEN 'N41' THEN G.ACT_TYP
+                                           ELSE NULL  END  ZZACT_ATTRIB
+                          FROM (
+                                SELECT GBN, DSC, 
+                                       C11.FIG_NO, C11.FIG_SHP FIG_SHP, SHP.SHP_COD, SHP.DCK_COD, C11.WRK_STG, C11.WRK_TYP, C11.WRK_TYP2,  SUBSTR(C11.ACT_COD, 6, 3) WRK_STG_TYP,
+                                       RPAD(C11.ACT_COD, 13, ' ') ACT_COD, C11.PLN_ST, C11.PLN_FI, C11.NET_ST, C11.NET_FI, C11.ACT_TYP,
+                                       C11.QM_NET_ST, C11.QM_NET_FI, C11.EST_ST, C11.EST_FI,
+                                       CASE WHEN SHP.SHP_KND IN ('CN','CL','CM','CB') AND C11.ITM_COD LIKE 'L%' AND C11.WRK_TYP = '13' AND C11.ITM_COD NOT LIKE 'L51%'
+                                                 THEN SUBSTR(C11.ITM_COD,1,3)||SUBSTR(C11.ITM_COD,5,1)||'0'
+                                            ELSE C11.ITM_COD END AS ASM_BLK -- 조립 블록
+                                       ,C11.ITM_COD, C11.DPT_COD
+                                       ,c62a.FN_TSMG_HBLOCK_INFO(C11.FIG_NO, C11.FIG_SHP, CASE WHEN C11.ITM_COD LIKE 'H%' THEN c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'L41') ELSE C11.ITM_COD END) HBLOCK
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'G41') G41_BLK -- 선PE 블록
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'F21') F21_BLK -- 의장 블록
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'H32') H32_BLK -- 도장 블록
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'JX1') JX1_BLK -- BF2 블록
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'K41') K41_BLK -- 후PE1 블록
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'L32') L32_BLK -- 후행도장 블록
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'L41') L41_BLK -- 후PE2 블록
+                                       ,c62a.FN_GET_TSMG_AFT_ACT_C1115(C11.FIG_NO, C11.FIG_SHP, RPAD(C11.ACT_COD, 13, ' '), 'N41') N41_BLK -- 탑재 블록
+                                  FROM (
+                                         SELECT /*+ no_merge */FIG_NO, FIG_SHP, SHP_COD, ACT_COD, ITM_COD, ACT_TYP, PLN_ST, PLN_FI, EST_ST, EST_FI, NET_ST, NET_FI, QM_NET_ST, QM_NET_FI,
+                                                WRK_STG, WRK_TYP, WRK_TYP2, DPT_COD, DPT_COD_OR
+                                           FROM C62A.TSEG005_TMP
+                                          WHERE WRK_STG = 'C'
+                                            AND FIG_NO = &I_FIG_NO
+                                            --AND PLN_ST BETWEEN '20250101' AND '20250631'
+                                       ) C11,
+                                       OPT.TSAA002 SHP,
+                                       (
+                                          SELECT 1 SEQ, 'C11' GBN, '조립' DSC FROM DUAL
+                                           UNION ALL
+                                          SELECT 2 SEQ, 'G41' GBN, '선PE' DSC FROM DUAL
+                                           UNION ALL
+                                          SELECT 3 SEQ, 'F21' GBN, '선행의장' DSC FROM DUAL
+                                           UNION ALL
+                                          SELECT 4 SEQ, 'H32' GBN, '선행도장' DSC FROM DUAL
+                                           UNION ALL
+                                          SELECT 5 SEQ, 'JX1' GBN, 'BF2' DSC FROM DUAL
+                                           UNION ALL
+                                          SELECT 6 SEQ, 'K41' GBN, '후PE1' DSC FROM DUAL
+                                           UNION ALL
+                                          SELECT 7 SEQ, 'L32' GBN, '후행도장' DSC FROM DUAL                                    
+                                           UNION ALL
+                                          SELECT 8 SEQ, 'L41' GBN, '후PE2' DSC FROM DUAL
+                                           UNION ALL
+                                          SELECT 9 SEQ, 'N41' GBN, '탑재' DSC FROM DUAL
+                                       ) LP
+                                 WHERE SHP.DCK_COD IN ('1','2','3','4','5','8','9','H')
+                                   AND SHP.SHP_TYP_QTY NOT LIKE '0%'
+                                   and C11.WRK_STG = 'C'
+                                   AND C11.FIG_NO = &I_FIG_NO
+                                   AND C11.FIG_SHP = SHP.FIG_SHP
+                                   AND C11.SHP_COD = SHP.SHP_COD
+                                   -- 진행 호선 기준
+                                   AND C11.FIG_SHP IN (SELECT FIG_SHP FROM OPT.TSAA002 WHERE TO_CHAR(SYSDATE,'YYYYMMDD') BETWEEN WC AND DL AND DCK_COD IN ('1','2','3','4','5','8','9','H') AND SHP_TYP_QTY NOT LIKE '0%')
+                                   AND C11.FIG_SHP NOT LIKE 'P%'
+                                   AND C11.FIG_SHP NOT LIKE 'T%'
+                                   AND (C11.WRK_TYP = '11' OR (SHP.SHP_KND IN ('CN','CL','CM','CB') AND C11.ITM_COD LIKE 'L%' AND C11.WRK_TYP = '13' AND C11.ITM_COD NOT LIKE 'L51%'))
+                               ) T
+                          LEFT OUTER JOIN G41 A -- 선PE
+                            ON T.FIG_NO = A.FIG_NO
+                           AND T.FIG_SHP = A.FIG_SHP
+                           AND A.ACT_COD LIKE T.G41_BLK||'G41000%'
+                          LEFT OUTER JOIN F21 B -- 선행의장
+                            ON T.FIG_NO = B.FIG_NO
+                           AND T.FIG_SHP = B.FIG_SHP
+                           AND B.ACT_COD LIKE T.F21_BLK||'F21000%'
+                          LEFT OUTER JOIN H32 C -- 선행도장
+                            ON T.FIG_NO = C.FIG_NO
+                           AND T.FIG_SHP = C.FIG_SHP
+                           AND C.ACT_COD LIKE T.H32_BLK||'H32000%'
+                          LEFT OUTER JOIN JX1 D -- BF2
+                            ON T.FIG_NO = D.FIG_NO
+                           AND T.FIG_SHP = D.FIG_SHP
+                           AND D.ACT_COD LIKE T.JX1_BLK||'JX1000%'
+                          LEFT OUTER JOIN K41 E -- 후PE1
+                            ON T.FIG_NO = E.FIG_NO
+                           AND T.FIG_SHP = E.FIG_SHP
+                           AND E.ACT_COD LIKE T.K41_BLK||'K41000%'
+                          LEFT OUTER JOIN L32 E1 -- 후행도장
+                            ON T.FIG_NO = E1.FIG_NO
+                           AND T.FIG_SHP = E1.FIG_SHP
+                           AND E1.ACT_COD LIKE T.L41_BLK||'L32000%'                           
+                          LEFT OUTER JOIN L41 F -- 후PE2
+                            ON T.FIG_NO = F.FIG_NO
+                           AND T.FIG_SHP = F.FIG_SHP
+                           AND F.ACT_COD LIKE T.L41_BLK||'L41000%'
+                          LEFT OUTER JOIN N41 G -- 탑재
+                            ON T.FIG_NO = G.FIG_NO
+                           AND T.FIG_SHP = G.FIG_SHP
+                           AND G.ACT_COD LIKE T.N41_BLK||'N41000%'
+                       ) T
+                 WHERE PLN_ST IS NOT NULL
+               )
