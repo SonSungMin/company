@@ -1,0 +1,105 @@
+SELECT /*+ NO_MERGE(A), RESULT_CACHE  */
+       A.SHP_NO, A.BLKNO, A.ACT_NO, A.ARBPL, A.COMP_CD,--A.PADO_KEY, 
+       A.USRINFO.KOR_NM KOR_NM, 
+       A.USRINFO.EMP_NO EMP_NO,
+       A.USRINFO.JOB_TIT_NM JOB_TIT_NM,
+       A.USRINFO.PNO PNO,
+       A.USRINFO.KOR_NM_CONFIRM KOR_NM_CONFIRM, 
+       A.USRINFO.EMP_NO_CONFIRM EMP_NO_CONFIRM,
+       A.USRINFO.JOB_TIT_NM_CONFIRM JOB_TIT_NM_CONFIRM,
+       A.USRINFO.PNO_CONFIRM PNO_CONFIRM,
+       T1.RPLN_SDTE,  -- 수정계획착수일
+       T1.RPLN_FDTE,  -- 수정계획완료일
+       T1.EST_ST,     -- 실행계획착수일_MOM
+       T1.EST_FI,     -- 실행계획완료일_MOM
+       T1.NET_ST,     -- 실적착수일_MOM
+       T1.NET_FI,     -- 실적완료일_MOM
+       A.ARBPL,       -- 작업장코드
+       SUBSTR(A.ARBPL, 1, 3) || '0' AS DEPT_CD, -- 부서코드
+       NVL(V.ORGN_NAM, '외주') AS DEPT_NAM,       -- 부서명
+       HD.KOR_NM AS DEPT_HD,                    -- 부서장
+       NVL(CASE WHEN LENGTH(TEL1.CHPNO) = 11 
+                     THEN SUBSTR(TEL1.CHPNO, 1, 3) || '-' || SUBSTR(TEL1.CHPNO, 4, 4) || '-' ||SUBSTR(TEL1.CHPNO, 8, 4)
+                WHEN LENGTH(TEL1.CHPNO) = 10 
+                     THEN SUBSTR(TEL1.CHPNO, 1, 3) || '-' || SUBSTR(TEL1.CHPNO, 4, 3) || '-' || SUBSTR(TEL1.CHPNO, 7, 4)
+                ELSE TEL1.CHPNO
+           END,
+           TEL1.PHPNO
+       ) AS DEPT_HD_PNO, -- 부서장 연락처
+       SUBSTR(A.ARBPL, 1, 4) AS ASGN_CD, -- 과코드
+       V2.ORGN_NAM, V3.ASGN_SHRT_NM,
+       NVL(V2.ORGN_NAM, V3.ASGN_SHRT_NM) AS ORGN_NAM, -- 작업과
+       HD2.KOR_NM AS ASGN_HD,  -- 직책과장
+       NVL(CASE WHEN LENGTH(TEL2.CHPNO) = 11 
+                     THEN SUBSTR(TEL2.CHPNO, 1, 3)||'-'||SUBSTR(TEL2.CHPNO, 4, 4)||'-'||SUBSTR(TEL2.CHPNO, 8, 4)
+                WHEN LENGTH(TEL2.CHPNO) = 10 
+                     THEN SUBSTR(TEL2.CHPNO, 1, 3)||'-'||SUBSTR(TEL2.CHPNO, 4, 3)||'-'||SUBSTR(TEL2.CHPNO, 7, 4)
+                ELSE TEL2.CHPNO
+           END,
+           TEL2.PHPNO
+       ) AS ASGN_HD_PNO, -- 직책과장 연락처
+       CASE WHEN EXISTS (SELECT 1
+                           FROM C62A.V62A0110
+                          WHERE TRIM(POST_ORGN) = SUBSTR(A.ARBPL, 1, 3) || '000'
+                            AND ROWNUM = 1) 
+                 THEN (SELECT ASGN_SHRT_NM
+                         FROM SUPPORT.ALL_ASGM_VIEW
+                        WHERE COMPANY = '300'
+                          AND CLSS_CD = '60'
+                          AND ASGN_CD = CASE WHEN ASGN_CD LIKE '%-000' THEN SUBSTR(A.ARBPL, 1, 4) || '-000' ELSE SUBSTR(A.ARBPL, 1, 4) END
+                          AND ROWNUM = 1)
+            ELSE (SELECT STD_DES_SHO
+                    FROM OPT.TSXA002
+                   WHERE STD_COD = 'OP207'
+                     AND ROWNUM = 1
+                     AND STD_COD_DET = (SELECT TRIM(VND)
+                                          FROM C51A.T51A0030
+                                         WHERE SHPNO = A.SHP_NO
+                                           AND ITEM || PRO || PJTKND || UNTPJT = A.ACT_NO
+                                           AND ROWNUM = 1))
+       END AS ASGN_NAM
+  FROM (
+        SELECT SHP_NO, BLKNO, ARBPL, ACT_NO, PADO_KEY, COMP_CD,
+               C62A.FN_USER_INFO_EX(ARBPL, COMP_CD) USRINFO
+          FROM (SELECT K1.SHP_NO, K1.BLKNO, K1.ACT_NO, K1.PADO_KEY, K1.ARBPL,
+                       CASE WHEN K2.ARBPL IS NOT NULL AND SUBSTR(K2.ARBPL, 4, 3) = '000' THEN '' ELSE K2.COMP_CD END COMP_CD
+                  FROM T62A_INTERNAL_MANAGER_INFO K1,
+                       (SELECT SHP_NO, ACT_NO, ARBPL, COUNT(*) AS CNT,
+                               (SELECT MAX(COMP_CD)
+                                  FROM CT02.TB_USERS T1
+                                 WHERE T1.ASGN_CD = (SELECT TRIM(TA1.VNDCOD) FROM V62A0110 TA1 WHERE TA1.POST_ORGN = ARBPL)
+                                   AND SUBSTR(T1.DEPT_CD, 1, 3) = SUBSTR(ARBPL, 1, 3)
+                               ) AS COMP_CD,
+                               RANK() OVER(PARTITION BY SHP_NO, ACT_NO ORDER BY SHP_NO, ACT_NO, COUNT(*) DESC) AS RNK
+                          FROM C62A.T62A0020
+                         WHERE (SHP_NO, ACT_NO, ARBPL) IN (SELECT DISTINCT SHP_NO, ACT_NO, ARBPL FROM T62A_INTERNAL_MANAGER_INFO)
+                         GROUP BY SHP_NO, ACT_NO, ARBPL
+                       ) K2
+                 WHERE K1.SHP_NO = K2.SHP_NO(+)
+                   AND K1.ACT_NO = K2.ACT_NO(+)
+                   AND K2.RNK(+) = 1
+               )
+       ) A,
+       C51A.T51A0030 T1,
+       C62A.V62A0110 V,
+       SUPPORT.AMSTM_VIEW HD,
+       SUPPORT.AMSTM_VIEW HD2,
+       C35A.HHI_TELE TEL1,
+       C35A.HHI_TELE TEL2,
+       C62A.V62A0110 V2,
+       SUPPORT.ALL_ASGM_VIEW V3
+ WHERE A.SHP_NO = T1.SHPNO
+   AND A.ACT_NO = T1.ACT_NO
+   AND SUBSTR(A.ARBPL, 1, 3) || '000' = TRIM(V.POST_ORGN)
+   AND HD.HLD_OFFI_GBN(+) = '1'
+   AND HD.OFFI_RES_CD(+) = '15'
+   AND HD.ASGN_CD(+) LIKE SUBSTR (A.ARBPL, 1, 3) || '%'
+   AND HD.EMP_NO = TEL1.EMPLNO
+   AND HD2.EMP_NO = TEL2.EMPLNO
+   AND HD2.HLD_OFFI_GBN(+) = '1'
+   AND HD2.OFFI_RES_CD(+) = '16'
+   AND HD2.ASGN_CD = CASE WHEN HD2.ASGN_CD LIKE '%-000' THEN SUBSTR(A.ARBPL, 1, 4)||'-000' ELSE SUBSTR(A.ARBPL, 1, 4) END
+   AND A.ARBPL = TRIM(V2.POST_ORGN(+))
+   AND V3.COMPANY(+) = '300'
+   AND V3.CLSS_CD(+) = '60'
+   AND A.ARBPL = V3.ASGN_CD(+)
