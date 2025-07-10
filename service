@@ -1,0 +1,139 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.ServiceModel;
+using P72BW.SC;
+using P72BW.Dac;
+
+namespace P72BW.Service
+{
+    //[ServiceBehavior(ConcurrencyMode = ConcurrencyMode.Multiple, InstanceContextMode = InstanceContextMode.PerCall, UseSynchronizationContext = false)]
+    public class P72BWService : IP72BWService
+    {
+        private readonly DatabaseManager _dbManager;
+
+        public P72BWService()
+        {
+            _dbManager = DatabaseManager.Instance;
+        }
+
+        public DataTableResult ExecuteQuery(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            try
+            {
+                var result = _dbManager.ExecuteQuery(pkg_proc, parameters);
+                return new DataTableResult(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return new DataTableResult(ex.Message, "INVALID_PARAMETER");
+            }
+            catch (Exception ex)
+            {
+                return new DataTableResult($"쿼리 실행 중 오류가 발생했습니다: {ex.Message}", "QUERY_ERROR");
+            }
+        }
+
+        public IntResult ExecuteNonQuery(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            try
+            {
+                var result = _dbManager.ExecuteNonQuery(pkg_proc, parameters);
+                return new IntResult(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return new IntResult(ex.Message, "INVALID_PARAMETER");
+            }
+            catch (Exception ex)
+            {
+                return new IntResult($"명령 실행 중 오류가 발생했습니다: {ex.Message}", "COMMAND_ERROR");
+            }
+        }
+
+        public StringResult ExecuteScalarString(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            try
+            {
+                var result = _dbManager.ExecuteScalar<string>(pkg_proc, parameters);
+                return new StringResult(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return new StringResult(ex.Message, "INVALID_PARAMETER");
+            }
+            catch (Exception ex)
+            {
+                return new StringResult($"스칼라 값 조회 중 오류가 발생했습니다: {ex.Message}", "SCALAR_ERROR");
+            }
+        }
+
+        public IntResult ExecuteScalarInt(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            try
+            {
+                var result = _dbManager.ExecuteScalar<int>(pkg_proc, parameters);
+                return new IntResult(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return new IntResult(ex.Message, "INVALID_PARAMETER");
+            }
+            catch (Exception ex)
+            {
+                return new IntResult($"스칼라 값 조회 중 오류가 발생했습니다: {ex.Message}", "SCALAR_ERROR");
+            }
+        }
+
+        public DecimalResult ExecuteScalarDecimal(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            try
+            {
+                var result = _dbManager.ExecuteScalar<decimal>(pkg_proc, parameters);
+                return new DecimalResult(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return new DecimalResult(ex.Message, "INVALID_PARAMETER");
+            }
+            catch (Exception ex)
+            {
+                return new DecimalResult($"스칼라 값 조회 중 오류가 발생했습니다: {ex.Message}", "SCALAR_ERROR");
+            }
+        }
+
+        public DataSetResult ExecuteDataSet(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            try
+            {
+                var result = _dbManager.ExecuteDataSet(pkg_proc, parameters);
+                return new DataSetResult(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return new DataSetResult(ex.Message, "INVALID_PARAMETER");
+            }
+            catch (Exception ex)
+            {
+                return new DataSetResult($"데이터셋 조회 중 오류가 발생했습니다: {ex.Message}", "DATASET_ERROR");
+            }
+        }
+
+        public DataTableResult ExecuteRefCursor(string pkg_proc, Dictionary<string, object> parameters, string refCursorParamName)
+        {
+            try
+            {
+                var result = _dbManager.ExecuteRefCursor(pkg_proc, parameters, refCursorParamName);
+                return new DataTableResult(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return new DataTableResult(ex.Message, "INVALID_PARAMETER");
+            }
+            catch (Exception ex)
+            {
+                return new DataTableResult($"REF CURSOR 조회 중 오류가 발생했습니다: {ex.Message}", "REFCURSOR_ERROR");
+            }
+        }
+    }
+}
