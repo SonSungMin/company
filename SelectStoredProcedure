@@ -1,0 +1,60 @@
+        public static DataSet SelectStoredProcedure(string strSP, DataTable dt_input, string strTableName)
+        {
+            DataSet ds = new DataSet();
+            Dictionary<string, object> queryParams = new Dictionary<string, object>();
+            
+            try
+            {
+                var factory = new ChannelFactory<IP72BWService>("P72BWServiceEndpoint");
+                IP72BWService proxy = factory.CreateChannel();
+
+                foreach (DataColumn dc in dt_input.Columns)
+                {
+                    switch (dc.DataType.ToString())
+                    {
+                        case "System.DateTime":
+                            if (dt_input.Rows[0][dc.ColumnName].ToString() == "")
+                                queryParams.Add("i_" + dc.ColumnName, dt_input.Rows[0][dc.ColumnName].ToString());
+                            else
+                                queryParams.Add("i_" + dc.ColumnName, ((DateTime)(dt_input.Rows[0][dc.ColumnName])).ToString(System.Threading.Thread.CurrentThread.CurrentCulture.DateTimeFormat.ShortDatePattern.ToString()));
+                            break;
+                        default:
+                            queryParams.Add("i_" + dc.ColumnName, dt_input.Rows[0][dc.ColumnName].ToString());
+                            break;
+                    }
+                }
+
+                if (((ICommunicationObject)proxy).State == CommunicationState.Created)
+                {
+                    ((ICommunicationObject)proxy).Open();
+                }
+
+                var queryResult = proxy.ExecuteRefCursor(strSP, queryParams, "O_CUR");
+
+                if (queryResult.IsSuccess)
+                {
+                    if (queryResult.Data != null)
+                    {
+                        ds.Tables.Add(queryResult.Data.Copy());
+                        ds.Tables[0].TableName = strTableName;
+                        Console.WriteLine($"조회 성공: {queryResult.Data.Rows.Count}행");
+                    }
+                }
+                else
+                {
+                    throw new Exception($"서비스 오류: {queryResult.Message} (오류코드: {queryResult.ErrorCode})");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"기타 오류: {ex.Message}");
+                Console.WriteLine($"오류 타입: {ex.GetType().Name}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"내부 예외: {ex.InnerException.Message}");
+                }
+                throw;
+            }
+
+            return ds;
+        }
