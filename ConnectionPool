@@ -1,0 +1,361 @@
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Data;
+using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
+using System.Threading;
+using System.Collections.Concurrent;
+
+namespace P72BW.Dac
+{
+    public class ConnectionPool : IDisposable
+    {
+        private readonly ConcurrentQueue<OracleConnection> _connections;
+        private readonly object _lockObject = new object();
+        private readonly string _connectionString;
+        private readonly int _maxPoolSize;
+        private readonly int _minPoolSize;
+        private int _currentPoolSize;
+        private bool _disposed = false;
+
+        public ConnectionPool(string connectionString, int minPoolSize = 5, int maxPoolSize = 20)
+        {
+            _connectionString = connectionString;
+            _minPoolSize = minPoolSize;
+            _maxPoolSize = maxPoolSize;
+            _connections = new ConcurrentQueue<OracleConnection>();
+
+            InitializePool();
+        }
+
+        private void InitializePool()
+        {
+            for (int i = 0; i < _minPoolSize; i++)
+            {
+                var connection = CreateConnection();
+                _connections.Enqueue(connection);
+                Interlocked.Increment(ref _currentPoolSize);
+            }
+        }
+
+        private OracleConnection CreateConnection()
+        {
+            var connection = new OracleConnection(_connectionString);
+            connection.Open();
+            return connection;
+        }
+
+        public OracleConnection GetConnection()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(ConnectionPool));
+
+            OracleConnection connection;
+            if (_connections.TryDequeue(out connection))
+            {
+                if (connection.State == ConnectionState.Open)
+                {
+                    return connection;
+                }
+                else
+                {
+                    connection.Dispose();
+                    Interlocked.Decrement(ref _currentPoolSize);
+                }
+            }
+
+            lock (_lockObject)
+            {
+                if (_currentPoolSize < _maxPoolSize)
+                {
+                    connection = CreateConnection();
+                    Interlocked.Increment(ref _currentPoolSize);
+                    return connection;
+                }
+            }
+
+            // Pool이 가득 찬 경우 잠시 대기 후 재시도
+            Thread.Sleep(100);
+            return GetConnection();
+        }
+
+        public void ReturnConnection(OracleConnection connection)
+        {
+            if (_disposed || connection == null) return;
+
+            if (connection.State == ConnectionState.Open)
+            {
+                _connections.Enqueue(connection);
+            }
+            else
+            {
+                connection.Dispose();
+                Interlocked.Decrement(ref _currentPoolSize);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            _disposed = true;
+
+            OracleConnection connection;
+            while (_connections.TryDequeue(out connection))
+            {
+                connection?.Dispose();
+            }
+        }
+    }
+
+    public class DatabaseManager
+    {
+        private static readonly Lazy<DatabaseManager> _instance = new Lazy<DatabaseManager>(() => new DatabaseManager());
+        private readonly ConnectionPool _connectionPool;
+
+        public static DatabaseManager Instance => _instance.Value;
+
+        private DatabaseManager()
+        {
+            string connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
+            int minPoolSize = int.Parse(ConfigurationManager.AppSettings["MinPoolSize"] ?? "5");
+            int maxPoolSize = int.Parse(ConfigurationManager.AppSettings["MaxPoolSize"] ?? "20");
+
+            _connectionPool = new ConnectionPool(connectionString, minPoolSize, maxPoolSize);
+        }
+
+        public DataTable ExecuteQuery(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            OracleConnection connection = null;
+            try
+            {
+                connection = _connectionPool.GetConnection();
+                using (var command = new OracleCommand())
+                {
+                    command.Connection = connection;
+                    command.CommandText = pkg_proc;
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    if (parameters != null && parameters.Count > 0)
+                        AddParameters(command, parameters);
+
+                    using (var adapter = new OracleDataAdapter(command))
+                    {
+                        var dataTable = new DataTable();
+                        adapter.Fill(dataTable);
+                        return dataTable;
+                    }
+                }
+            }
+            finally
+            {
+                if (connection != null)
+                {
+                    _connectionPool.ReturnConnection(connection);
+                }
+            }
+        }
+
+        public int ExecuteNonQuery(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            OracleConnection connection = null;
+            try
+            {
+                connection = _connectionPool.GetConnection();
+                using (var command = new OracleCommand())
+                {
+                    command.Connection = connection;
+                    command.CommandText = pkg_proc;
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    AddParameters(command, parameters);
+
+                    return command.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                if (connection != null)
+                {
+                    _connectionPool.ReturnConnection(connection);
+                }
+            }
+        }
+
+        public T ExecuteScalar<T>(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            OracleConnection connection = null;
+            try
+            {
+                connection = _connectionPool.GetConnection();
+                using (var command = new OracleCommand())
+                {
+                    command.Connection = connection;
+                    command.CommandText = pkg_proc;
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    AddParameters(command, parameters);
+
+                    var result = command.ExecuteScalar();
+                    if (result == null || result == DBNull.Value)
+                        return default(T);
+
+                    return (T)Convert.ChangeType(result, typeof(T));
+                }
+            }
+            finally
+            {
+                if (connection != null)
+                {
+                    _connectionPool.ReturnConnection(connection);
+                }
+            }
+        }
+
+        public DataSet ExecuteDataSet(string pkg_proc, Dictionary<string, object> parameters)
+        {
+            OracleConnection connection = null;
+            try
+            {
+                connection = _connectionPool.GetConnection();
+                using (var command = new OracleCommand())
+                {
+                    command.Connection = connection;
+                    command.CommandText = pkg_proc;
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    AddParameters(command, parameters);
+
+                    using (var adapter = new OracleDataAdapter(command))
+                    {
+                        var dataSet = new DataSet();
+                        adapter.Fill(dataSet);
+                        return dataSet;
+                    }
+                }
+            }
+            finally
+            {
+                if (connection != null)
+                {
+                    _connectionPool.ReturnConnection(connection);
+                }
+            }
+        }
+
+        public DataTable ExecuteRefCursor(string pkg_proc, Dictionary<string, object> parameters, string refCursorParamName = "O_CUR")
+        {
+            OracleConnection connection = null;
+            try
+            {
+                connection = _connectionPool.GetConnection();
+                using (var command = new OracleCommand())
+                {
+                    command.Connection = connection;
+                    command.CommandText = pkg_proc;
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    // REF CURSOR 파라미터 추가
+                    var refCursorParam = new OracleParameter(refCursorParamName, OracleDbType.RefCursor);
+                    refCursorParam.Direction = ParameterDirection.Output;
+                    command.Parameters.Add(refCursorParam);
+
+                    AddParameters(command, parameters);
+
+                    command.ExecuteNonQuery();
+
+                    // REF CURSOR에서 데이터 읽기
+                    using (var reader = ((OracleRefCursor)refCursorParam.Value).GetDataReader())
+                    {
+                        var dataTable = new DataTable();
+                        dataTable.Load(reader);
+                        return dataTable;
+                    }
+                }
+            }
+            finally
+            {
+                if (connection != null)
+                {
+                    _connectionPool.ReturnConnection(connection);
+                }
+            }
+        }
+
+        private void AddParameters(OracleCommand command, Dictionary<string, object> parameters)
+        {
+            if (parameters != null && parameters.Count > 0)
+            {
+                foreach (var param in parameters)
+                {
+                    var parameter = new OracleParameter();
+                    parameter.ParameterName = param.Key;
+
+                    if (param.Value == null)
+                    {
+                        parameter.Value = DBNull.Value;
+                    }
+                    else
+                    {
+                        parameter.Value = param.Value;
+
+                        // Oracle 타입 자동 매핑
+                        SetOracleDbType(parameter, param.Value);
+                    }
+
+                    command.Parameters.Add(parameter);
+                }
+            }
+        }
+
+        private void SetOracleDbType(OracleParameter parameter, object value)
+        {
+            if (value == null) return;
+
+            Type valueType = value.GetType();
+
+            if (valueType == typeof(string))
+            {
+                parameter.OracleDbType = OracleDbType.Varchar2;
+            }
+            else if (valueType == typeof(int) || valueType == typeof(int?))
+            {
+                parameter.OracleDbType = OracleDbType.Int32;
+            }
+            else if (valueType == typeof(long) || valueType == typeof(long?))
+            {
+                parameter.OracleDbType = OracleDbType.Int64;
+            }
+            else if (valueType == typeof(decimal) || valueType == typeof(decimal?))
+            {
+                parameter.OracleDbType = OracleDbType.Decimal;
+            }
+            else if (valueType == typeof(double) || valueType == typeof(double?))
+            {
+                parameter.OracleDbType = OracleDbType.Double;
+            }
+            else if (valueType == typeof(float) || valueType == typeof(float?))
+            {
+                parameter.OracleDbType = OracleDbType.Single;
+            }
+            else if (valueType == typeof(DateTime) || valueType == typeof(DateTime?))
+            {
+                parameter.OracleDbType = OracleDbType.Date;
+            }
+            else if (valueType == typeof(bool) || valueType == typeof(bool?))
+            {
+                parameter.OracleDbType = OracleDbType.Char;
+                parameter.Value = ((bool)value) ? "Y" : "N";
+            }
+            else if (valueType == typeof(byte[]))
+            {
+                parameter.OracleDbType = OracleDbType.Blob;
+            }
+        }
+
+        public void Dispose()
+        {
+            _connectionPool?.Dispose();
+        }
+    }
+}
