@@ -1,0 +1,267 @@
+public void InitCombo(
+ComboBoxEditSettings combo,
+object itemSource,
+string displayMember,
+string valueMember)
+{
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Siteb == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Siteb = CallSite<Func<CallSite, object, bool>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.UnaryOperation(CSharpBinderFlags.None, ExpressionType.IsTrue, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, bool> target1 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Siteb.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, bool>> pSiteb = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Siteb;
+bool flag1 = combo != null;
+object obj1;
+if (flag1)
+{
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitec == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitec = CallSite<Func<CallSite, bool, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.BinaryOperation(CSharpBinderFlags.BinaryOperationLogical, ExpressionType.And, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, bool, object, object> target2 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitec.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, bool, object, object>> pSitec = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitec;
+int num = flag1 ? 1 : 0;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sited == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sited = CallSite<Func<CallSite, object, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.BinaryOperation(CSharpBinderFlags.None, ExpressionType.NotEqual, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.Constant, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+object obj2 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sited.Target((CallSite)AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sited, itemSource, (object)null);
+obj1 = target2((CallSite)pSitec, num != 0, obj2);
+}
+else
+obj1 = (object)flag1;
+object obj3 = obj1;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitee == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitee = CallSite<Func<CallSite, object, bool>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.UnaryOperation(CSharpBinderFlags.None, ExpressionType.IsFalse, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+object obj4;
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+if (!AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitee.Target((CallSite)AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitee, obj3))
+{
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitef == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitef = CallSite<Func<CallSite, object, bool, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.BinaryOperation(CSharpBinderFlags.BinaryOperationLogical, ExpressionType.And, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+obj4 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitef.Target((CallSite)AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Sitef, obj3, !string.IsNullOrEmpty(displayMember));
+}
+else
+obj4 = obj3;
+object obj5 = obj4;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site10 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site10 = CallSite<Func<CallSite, object, bool>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.UnaryOperation(CSharpBinderFlags.None, ExpressionType.IsFalse, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+object obj6;
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+if (!AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site10.Target((CallSite)AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site10, obj5))
+{
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site11 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site11 = CallSite<Func<CallSite, object, bool, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.BinaryOperation(CSharpBinderFlags.BinaryOperationLogical, ExpressionType.And, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+obj6 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site11.Target((CallSite)AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site11, obj5, !string.IsNullOrEmpty(valueMember));
+}
+else
+obj6 = obj5;
+if (!target1((CallSite)pSiteb, obj6))
+throw new NotImplementedException(nameof(InitCombo));
+if (itemSource is DataTable)
+{
+ComboBoxEditSettings comboBoxEditSettings = combo;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site12 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site12 = CallSite<Func<CallSite, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetMember(CSharpBinderFlags.None, "DefaultView", typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+object obj7 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site12.Target((CallSite)AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site12, itemSource);
+((LookUpEditSettingsBase)comboBoxEditSettings).ItemsSource = obj7;
+}
+else
+{
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site13 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site13 = CallSite<Func<CallSite, object, bool>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.UnaryOperation(CSharpBinderFlags.None, ExpressionType.IsTrue, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, bool> target3 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site13.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, bool>> pSite13 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site13;
+bool flag2 = itemSource is DataSet;
+object obj8;
+if (flag2)
+{
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site14 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site14 = CallSite<Func<CallSite, bool, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.BinaryOperation(CSharpBinderFlags.BinaryOperationLogical, ExpressionType.And, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, bool, object, object> target4 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site14.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, bool, object, object>> pSite14 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site14;
+int num = flag2 ? 1 : 0;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site15 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site15 = CallSite<Func<CallSite, object, int, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.BinaryOperation(CSharpBinderFlags.None, ExpressionType.GreaterThan, typeof(AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.Constant, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, int, object> target5 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site15.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, int, object>> pSite15 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site15;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site16 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site16 = CallSite<Func<CallSite, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetMember(CSharpBinderFlags.None, "Count", typeof (AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>) new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, object> target6 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site16.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, object>> pSite16 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site16;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site17 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site17 = CallSite<Func<CallSite, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetMember(CSharpBinderFlags.None, "Tables", typeof (AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>) new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+object obj9 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site17.Target((CallSite) AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site17, itemSource);
+object obj10 = target6((CallSite) pSite16, obj9);
+object obj11 = target5((CallSite) pSite15, obj10, 0);
+obj8 = target4((CallSite) pSite14, num != 0, obj11);
+}
+else
+obj8 = (object) flag2;
+if (target3((CallSite) pSite13, obj8))
+{
+ComboBoxEditSettings comboBoxEditSettings = combo;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site18 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site18 = CallSite<Func<CallSite, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetMember(CSharpBinderFlags.None, "DefaultView", typeof (AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>) new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, object> target7 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site18.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, object>> pSite18 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site18;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site19 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site19 = CallSite<Func<CallSite, object, int, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetIndex(CSharpBinderFlags.None, typeof (AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>) new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.Constant, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, int, object> target8 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site19.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, int, object>> pSite19 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site19;
+// ISSUE: reference to a compiler-generated field
+if (AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site1a == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site1a = CallSite<Func<CallSite, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetMember(CSharpBinderFlags.ResultIndexed, "Tables", typeof (AmiViewBaseMef), (IEnumerable<CSharpArgumentInfo>) new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+object obj12 = AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site1a.Target((CallSite) AmiViewBaseMef.\u003CInitCombo\u003Eo__SiteContainera.\u003C\u003Ep__Site1a, itemSource);
+object obj13 = target8((CallSite) pSite19, obj12, 0);
+object obj14 = target7((CallSite) pSite18, obj13);
+((LookUpEditSettingsBase) comboBoxEditSettings).ItemsSource = obj14;
+}
+else
+((LookUpEditSettingsBase) combo).ItemsSource = itemSource;
+}
+((LookUpEditSettingsBase) combo).DisplayMember = displayMember;
+((LookUpEditSettingsBase) combo).ValueMember = valueMember;
+}
