@@ -1,0 +1,19 @@
+public void AddWithValue(string colName, object value, OracleCommand command)
+{
+if (command == null)
+return;
+// ISSUE: reference to a compiler-generated field
+if (AmiOracleBulkUploader.\u003CAddWithValue\u003Eo__SiteContainer9.\u003C\u003Ep__Sitea == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiOracleBulkUploader.\u003CAddWithValue\u003Eo__SiteContainer9.\u003C\u003Ep__Sitea = CallSite<System.Action<CallSite, OracleParameterCollection, string, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.ResultDiscarded, nameof(AddWithValue), (IEnumerable<Type>)null, typeof(AmiOracleBulkUploader), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[3]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+AmiOracleBulkUploader.\u003CAddWithValue\u003Eo__SiteContainer9.\u003C\u003Ep__Sitea.Target((CallSite)AmiOracleBulkUploader.\u003CAddWithValue\u003Eo__SiteContainer9.\u003C\u003Ep__Sitea, command.Parameters, colName, value);
+}
