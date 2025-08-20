@@ -1,36 +1,30 @@
-private void ResizeWindow()
-{
-// ISSUE: reference to a compiler-generated field
-if (AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site7 == null)
-{
-// ISSUE: reference to a compiler-generated field
-AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site7 = CallSite<Func<CallSite, object, bool>>.Create(Binder.UnaryOperation(CSharpBinderFlags.None, ExpressionType.IsTrue, typeof(AmiDevGrid), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
-{
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-}));
-}
-// ISSUE: reference to a compiler-generated field
-Func<CallSite, object, bool> target = AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site7.Target;
-// ISSUE: reference to a compiler-generated field
-CallSite<Func<CallSite, object, bool>> pSite7 = AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site7;
-// ISSUE: reference to a compiler-generated field
-if (AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site8 == null)
-{
-// ISSUE: reference to a compiler-generated field
-AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site8 = CallSite<Func<CallSite, object, object, object>>.Create(Binder.BinaryOperation(CSharpBinderFlags.None, ExpressionType.NotEqual, typeof(AmiDevGrid), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-{
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.Constant, (string) null)
-}));
-}
-// ISSUE: reference to a compiler-generated field
-// ISSUE: reference to a compiler-generated field
-object obj = AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site8.Target((CallSite)AmiDevGrid.\u003CResizeWindow\u003Eo__SiteContainer6.\u003C\u003Ep__Site8, this._DataSource, (object)null);
-if (!target((CallSite)pSite7, obj))
-return;
-double num1 = ((IEnumerable<GridColumn>)this.MainDevGrid.Columns).Where<GridColumn>((Func<GridColumn, bool>)(aa => ((BaseColumn)aa).Visible)).Sum<GridColumn>((Func<GridColumn, double>)(aa => ((BaseColumn)aa).ActualHeaderWidth)) + 55.0;
-double num2 = num1 <= 780.0 ? num1 : 780.0;
-((FrameworkElement)this.DevGrid).Width = num2;
-double num3 = num2 * 3.0 / 4.0;
-((FrameworkElement)this.DevGrid).Height = num3 <= 640.0 ? num3 : 640.0;
+using DevExpress.Xpf.Docking;
+using Microsoft.Practices.Prism.Regions;
+using System.ComponentModel.Composition;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace Amisys.Framework.Infrastructure.RegionAdapters
+{ 
+    [Export(typeof(DockManagerAdapter))]
+    [PartCreationPolicy(CreationPolicy.NonShared)]
+    [method: ImportingConstructor]
+    public class DockManagerAdapter(IRegionBehaviorFactory behaviorFactory) : RegionAdapterBase<DockLayoutManager>(behaviorFactory)
+    {
+      protected virtual IRegion CreateRegion() => (IRegion)new SingleActiveRegion();
+
+        protected virtual void Adapt(IRegion region, DockLayoutManager regionTarget)
+        {
+            foreach (BaseLayoutItem baseLayoutItem in DockLayoutManagerExtension.GetItems(regionTarget))
+            {
+                string regionName = RegionManager.GetRegionName((DependencyObject)baseLayoutItem);
+                if (!string.IsNullOrEmpty(regionName) && baseLayoutItem is LayoutPanel layoutPanel && ((ContentItem)layoutPanel).Content == null)
+                {
+                    ContentControl contentControl = new ContentControl();
+                    RegionManager.SetRegionName((DependencyObject)contentControl, regionName);
+                    ((ContentItem)layoutPanel).Content = (object)contentControl;
+                }
+            }
+        }
+    }
 }
