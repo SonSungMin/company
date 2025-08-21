@@ -1,113 +1,45 @@
 using DevExpress.Xpf.Docking;
-using DevExpress.Xpf.Docking.Base;
 using Microsoft.Practices.Prism.Regions;
-using System;
 using System.Collections;
-using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel.Composition;
-using System.Linq;
-using System.Windows;
 
 namespace Amisys.Framework.Infrastructure.RegionAdapters
-{ 
+{
     [PartCreationPolicy(CreationPolicy.NonShared)]
-    [Export(typeof(DocumentGroupAdapter))]
-    [method: ImportingConstructor]
-    public class DocumentGroupAdapter(IRegionBehaviorFactory behaviorFactory) : RegionAdapterBase<DocumentGroup>(behaviorFactory)
+    [Export(typeof(LayoutGroupAdapter))]
+    //[method: ImportingConstructor]
+    public class LayoutGroupAdapter(IRegionBehaviorFactory behaviorFactory) : RegionAdapterBase<LayoutGroup>(behaviorFactory)
     {
-      private SortedList<string, int> viewList = new SortedList<string, int>();
+        protected virtual IRegion CreateRegion() => (IRegion)new AllActiveRegion();
 
-    protected virtual IRegion CreateRegion() => (IRegion)new AllActiveRegion();
-
-    protected virtual void Adapt(IRegion region, DocumentGroup regionTarget)
-    {
-        ((INotifyCollectionChanged)region.Views).CollectionChanged += (NotifyCollectionChangedEventHandler)((s, e) => this.OnViewsCollectionChanged(region, regionTarget, s, e));
-    }
-
-    private void DocumentPanel_Unloaded(object sender, RoutedEventArgs e)
-    {
-        if (!(sender is DocumentPanel))
-            return;
-        object content = ((ContentItem)(sender as DocumentPanel)).Content;
-        if (content is IDisposable)
-            ((IDisposable)content).Dispose();
-    }
-    private void DockLayoutManager_DockItemClosed(object sender, DockItemClosedEventArgs e)
-    {
-        if (e.AffectedItems.Count<BaseLayoutItem>() <= 0)
-            return;
-        foreach (BaseLayoutItem affectedItem in e.AffectedItems)
+        protected virtual void Adapt(IRegion region, LayoutGroup regionTarget)
         {
-            if (affectedItem is DocumentPanel)
-            {
-                object content = ((ContentItem)(affectedItem as DocumentPanel)).Content;
-                if (content is IDisposable)
-                    ((IDisposable)content).Dispose();
-            }
+            ((INotifyCollectionChanged)region.Views).CollectionChanged += (NotifyCollectionChangedEventHandler)((s, e) => this.OnViewsCollectionChanged(region, regionTarget, s, e));
         }
-    }
 
-    private int GetViewSeq(string name)
-    {
-        if (this.viewList.ContainsKey(name))
+        private void OnViewsCollectionChanged(
+          IRegion region,
+          LayoutGroup regionTarget,
+          object sender,
+          NotifyCollectionChangedEventArgs e)
         {
-            this.viewList[name] = this.viewList[name] + 1;
-            return this.viewList[name];
-        }
-        this.viewList.Add(name, 1);
-        return 1;
-    }
-    private string GetPanelNameWithSeq(string name)
-    {
-        return this.GetViewSeq(name) > 1 ? $"{name}_{this.GetViewSeq(name)}" : name;
-    }
-
-    private void OnViewsCollectionChanged(
-      IRegion region,
-      DocumentGroup regionTarget,
-      object sender,
-      NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action == NotifyCollectionChangedAction.Add)
-        {
+            if (e.Action != NotifyCollectionChangedAction.Add)
+                return;
             foreach (object newItem in (IEnumerable)e.NewItems)
             {
-                DockLayoutManager dockLayoutManager = LayoutItemsHelper.GetDockLayoutManager((BaseLayoutItem)regionTarget);
-                dockLayoutManager.DockItemClosed += new DockItemClosedEventHandler(this.DockLayoutManager_DockItemClosed);
-                DocumentPanel wnd = dockLayoutManager.DockController.AddDocumentPanel(regionTarget);
-                ((ContentItem)wnd).Content = newItem;
+                LayoutPanel layoutPanel = new LayoutPanel();
+                ((ContentItem)layoutPanel).Content = newItem;
                 if (newItem is IPanelInfo)
                 {
-                    ((BaseLayoutItem)wnd).Name = ((IPanelInfo)newItem).GetPanelName();
-                    ((BaseLayoutItem)wnd).Caption = (object)((IPanelInfo)newItem).GetPanelCaption();
-                    ((IPanelInfo)newItem).SetParentWnd((object)wnd);
+                    ((BaseLayoutItem)layoutPanel).Name = ((IPanelInfo)newItem).GetPanelName();
+                    ((BaseLayoutItem)layoutPanel).Caption = (object)((IPanelInfo)newItem).GetPanelCaption();
                 }
                 else
-                {
-                    ((BaseLayoutItem)wnd).Name = "new Page";
-                    ((BaseLayoutItem)wnd).Caption = (object)"new Page";
-                }
-              ((IActiveItemOwner)dockLayoutManager.DockController).Activate((BaseLayoutItem)wnd);
-            }
-        }
-        else
-        {
-            if (e.Action != NotifyCollectionChangedAction.Remove)
-                return;
-            foreach (object oldItem in (IEnumerable)e.OldItems)
-            {
-                if (oldItem is IPanelInfo)
-                {
-                    DockLayoutManager dockLayoutManager = LayoutItemsHelper.GetDockLayoutManager((BaseLayoutItem)regionTarget);
-                    if (dockLayoutManager != null && dockLayoutManager.DockController != null)
-                    {
-                        object parentWnd = ((IPanelInfo)oldItem).GetParentWnd();
-                        dockLayoutManager.DockController.RemovePanel((LayoutPanel)(parentWnd as DocumentPanel));
-                        if (oldItem is IDisposable)
-                            ((IDisposable)oldItem).Dispose();
-                    }
-                }
+                    ((BaseLayoutItem)layoutPanel).Caption = (object)"new Page";
+                ((Collection<BaseLayoutItem>)regionTarget.Items).Add((BaseLayoutItem)layoutPanel);
+                regionTarget.SelectedTabIndex = ((Collection<BaseLayoutItem>)regionTarget.Items).Count - 1;
             }
         }
     }
