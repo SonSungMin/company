@@ -1,339 +1,47 @@
-using DevExpress.Xpf.Core;
-using DevExpress.Xpf.Editors;
-using Microsoft.CSharp.RuntimeBinder;
-using System;
-using System.CodeDom.Compiler;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Markup;
-
-namespace Amisys.Framework.Infrastructure.UserControls
-{ 
-public class AmiSelectComboBox : DXWindow, IComponentConnector
+public AmiSelectSpin(string _title, object view)
+: this(_title)
 {
-    private object _DataSource;
-    private bool _IsOK = false;
-    private object _SelectedItem;
-    public string WindowTitle = "Selected Item";
-    internal ComboBoxEdit AmiComboBoxEdit;
-    internal Button Cancel;
-    internal Button Ok;
-    private bool _contentLoaded;
-
-    public object DataSource
-    {
-        get => this._DataSource;
-        set => this._DataSource = value;
-    }
-    public bool IsOK
-    {
-        get => this._IsOK;
-        set => this._IsOK = value;
-    }
-
-    public object SelectedItem
-    {
-        get => this._SelectedItem;
-        set
-        {
-            this._SelectedItem = value;
-            if (((LookUpEditBase)this.AmiComboBoxEdit).ItemsSource == null)
-                return;
-            ((LookUpEditBase)this.AmiComboBoxEdit).SelectedItem = value;
-        }
-    }
-
-    public object SelectedItems
-    {
-        get
-        {
-            return this.AmiComboBoxEdit != null ? (object)((LookUpEditBase)this.AmiComboBoxEdit).SelectedItems : (object)null;
-        }
-    }
-
-    public AmiSelectComboBox() => this.InitializeComponent();
-
-    public void DataBinding(object _dataSource)
-    {
-        this._DataSource = _dataSource;
-        ((LookUpEditBase)this.AmiComboBoxEdit).ItemsSource = this._DataSource;
-    }
-    public void DataBinding(object _dataSource, string _DisplayMember)
-    {
-        this._DataSource = _dataSource;
-        ((LookUpEditBase)this.AmiComboBoxEdit).ItemsSource = this._DataSource;
-        ((LookUpEditBase)this.AmiComboBoxEdit).DisplayMember = _DisplayMember;
-    }
-
-    public void DataBinding(object _dataSource, string _DisplayMember, string _ValueMember)
-    {
-        this._DataSource = _dataSource;
-        ((LookUpEditBase)this.AmiComboBoxEdit).ItemsSource = this._DataSource;
-        ((LookUpEditBase)this.AmiComboBoxEdit).DisplayMember = _DisplayMember;
-        ((LookUpEditBase)this.AmiComboBoxEdit).ValueMember = _ValueMember;
-    }
-
-    public AmiSelectComboBox(string _title) : this()
-    {
-        this.WindowTitle = _title;
-        this.Title = _title;
-    }
-    public AmiSelectComboBox(string _title, object _ItemsSource, string _DisplayMember) : this(_title)
-    {
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1 = CallSite<Action<CallSite, AmiSelectComboBox, object, string>>.Create(Binder.InvokeMember(CSharpBinderFlags.InvokeSimpleName | CSharpBinderFlags.ResultDiscarded, "DataBinding", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[3]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null)
-            }));
-        }
-        // ISSUE: reference to a compiler-generated field
-        // ISSUE: reference to a compiler-generated field
-        AmiSelectComboBox.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1.Target((CallSite)AmiSelectComboBox.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1, this, _ItemsSource, _DisplayMember);
-    }
-
-    public AmiSelectComboBox(string _title, object _ItemsSource, string _DisplayMember, object view) : this(_title)
-    {
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site3 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site3 = CallSite<Action<CallSite, AmiSelectComboBox, object, string>>.Create(Binder.InvokeMember(CSharpBinderFlags.InvokeSimpleName | CSharpBinderFlags.ResultDiscarded, "DataBinding", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[3]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null)
-            }));
-        }
-        // ISSUE: reference to a compiler-generated field
-        // ISSUE: reference to a compiler-generated field
-        AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site3.Target((CallSite)AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site3, this, _ItemsSource, _DisplayMember);
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site4 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site4 = CallSite<Func<CallSite, object, Point>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(Point), typeof(AmiSelectComboBox)));
-        }
-        // ISSUE: reference to a compiler-generated field
-        Func<CallSite, object, Point> target1 = AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site4.Target;
-        // ISSUE: reference to a compiler-generated field
-        CallSite<Func<CallSite, object, Point>> pSite4 = AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site4;
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site5 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site5 = CallSite<Func<CallSite, object, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "PointToScreen", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-            }));
-        }
-        // ISSUE: reference to a compiler-generated field
-        Func<CallSite, object, object, object> target2 = AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site5.Target;
-        // ISSUE: reference to a compiler-generated field
-        CallSite<Func<CallSite, object, object, object>> pSite5 = AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site5;
-        object obj1 = view;
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site6 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site6 = CallSite<Func<CallSite, Type, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetPosition", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.IsStaticType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-            }));
-        }
-        object obj2 = AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site6.Target((CallSite)AmiSelectComboBox.ctor\u003Eo__SiteContainer2.\u003C\u003Ep__Site6, typeof(Mouse), view);
-        object obj3 = target2((CallSite)pSite5, obj1, obj2);
-        Point point = target1((CallSite)pSite4, obj3);
-        ((Window)this).WindowStartupLocation = WindowStartupLocation.Manual;
-        ((Window)this).Left = point.X;
-        ((Window)this).Top = point.Y - 50.0;
-    }
-
-    public AmiSelectComboBox(
-      string _title,
-      object _ItemsSource,
-      string _DisplayMember,
-      string _ValueMember,
-      object view)
-      : this(_title)
-    {
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site8 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site8 = CallSite<Action<CallSite, AmiSelectComboBox, object, string, string>>.Create(Binder.InvokeMember(CSharpBinderFlags.InvokeSimpleName | CSharpBinderFlags.ResultDiscarded, "DataBinding", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[4]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null)
-            }));
-        }
-        AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site8.Target((CallSite)AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site8, this, _ItemsSource, _DisplayMember, _ValueMember);
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site9 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site9 = CallSite<Func<CallSite, object, Point>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(Point), typeof(AmiSelectComboBox)));
-        }
-        // ISSUE: reference to a compiler-generated field
-        Func<CallSite, object, Point> target1 = AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site9.Target;
-        CallSite<Func<CallSite, object, Point>> pSite9 = AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Site9;
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Sitea == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Sitea = CallSite<Func<CallSite, object, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "PointToScreen", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-            }));
-        }
-        Func<CallSite, object, object, object> target2 = AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Sitea.Target;
-        // ISSUE: reference to a compiler-generated field
-        CallSite<Func<CallSite, object, object, object>> pSitea = AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Sitea;
-        object obj1 = view;
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Siteb == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Siteb = CallSite<Func<CallSite, Type, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetPosition", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.IsStaticType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-            }));
-        }
-        // ISSUE: reference to a compiler-generated field
-        // ISSUE: reference to a compiler-generated field
-        object obj2 = AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Siteb.Target((CallSite)AmiSelectComboBox.ctor\u003Eo__SiteContainer7.\u003C\u003Ep__Siteb, typeof(Mouse), view);
-        object obj3 = target2((CallSite)pSitea, obj1, obj2);
-        Point point = target1((CallSite)pSite9, obj3);
-        ((Window)this).WindowStartupLocation = WindowStartupLocation.Manual;
-        ((Window)this).Left = point.X;
-        ((Window)this).Top = point.Y - 50.0;
-    }
-
-    public AmiSelectComboBox(string _title, object _ItemsSource, object view)
-      : this(_title)
-    {
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sited == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sited = CallSite<Action<CallSite, AmiSelectComboBox, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.InvokeSimpleName | CSharpBinderFlags.ResultDiscarded, "DataBinding", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-            }));
-        }
-        // ISSUE: reference to a compiler-generated field
-        // ISSUE: reference to a compiler-generated field
-        AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sited.Target((CallSite)AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sited, this, _ItemsSource);
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitee == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitee = CallSite<Func<CallSite, object, Point>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(Point), typeof(AmiSelectComboBox)));
-        }
-        // ISSUE: reference to a compiler-generated field
-        Func<CallSite, object, Point> target1 = AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitee.Target;
-        // ISSUE: reference to a compiler-generated field
-        CallSite<Func<CallSite, object, Point>> pSitee = AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitee;
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitef == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitef = CallSite<Func<CallSite, object, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "PointToScreen", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-            }));
-        }
-        // ISSUE: reference to a compiler-generated field
-        Func<CallSite, object, object, object> target2 = AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitef.Target;
-        // ISSUE: reference to a compiler-generated field
-        CallSite<Func<CallSite, object, object, object>> pSitef = AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Sitef;
-        object obj1 = view;
-        // ISSUE: reference to a compiler-generated field
-        if (AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Site10 == null)
-    {
-            // ISSUE: reference to a compiler-generated field
-            AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Site10 = CallSite<Func<CallSite, Type, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetPosition", (IEnumerable<Type>)null, typeof(AmiSelectComboBox), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-            {
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.IsStaticType, (string) null),
-        CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-            }));
-        }
-        // ISSUE: reference to a compiler-generated field
-        // ISSUE: reference to a compiler-generated field
-        object obj2 = AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Site10.Target((CallSite)AmiSelectComboBox.ctor\u003Eo__SiteContainerc.\u003C\u003Ep__Site10, typeof(Mouse), view);
-        object obj3 = target2((CallSite)pSitef, obj1, obj2);
-        Point point = target1((CallSite)pSitee, obj3);
-        ((Window)this).WindowStartupLocation = WindowStartupLocation.Manual;
-        ((Window)this).Left = point.X;
-        ((Window)this).Top = point.Y - 50.0;
-    }
-
-    public void SetAutoComplete(bool auto)
-    {
-        ((LookUpEditBase)this.AmiComboBoxEdit).AutoComplete = auto;
-    }
-
-    private void Ok_Click(object sender, RoutedEventArgs e)
-    {
-        this.IsOK = true;
-        if (((LookUpEditBase)this.AmiComboBoxEdit).SelectedItem != null)
-            this._SelectedItem = ((LookUpEditBase)this.AmiComboBoxEdit).SelectedItem;
-        ((Window)this).Close();
-    }
-    private void Cancel_Click(object sender, RoutedEventArgs e)
-    {
-        this.IsOK = false;
-        ((Window)this).Close();
-    }
-
-    [DebuggerNonUserCode]
-    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
-    public void InitializeComponent()
-    {
-        if (this._contentLoaded)
-            return;
-        this._contentLoaded = true;
-        Application.LoadComponent((object)this, new Uri("/AmiAFInfrastructure;component/usercontrols/amiselectcombobox.xaml", UriKind.Relative));
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [DebuggerNonUserCode]
-    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
-    void IComponentConnector.Connect(int connectionId, object target)
-    {
-        switch (connectionId)
-        {
-            case 1:
-                this.AmiComboBoxEdit = (ComboBoxEdit)target;
-                break;
-            case 2:
-                this.Cancel = (Button)target;
-                this.Cancel.Click += new RoutedEventHandler(this.Cancel_Click);
-                break;
-            case 3:
-                this.Ok = (Button)target;
-                this.Ok.Click += new RoutedEventHandler(this.Ok_Click);
-                break;
-            default:
-                this._contentLoaded = true;
-                break;
-        }
-    }
+// ISSUE: reference to a compiler-generated field
+if (AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1 = CallSite<Func<CallSite, object, Point>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(Point), typeof(AmiSelectSpin)));
 }
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, Point> target1 = AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, Point>> pSite1 = AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1;
+// ISSUE: reference to a compiler-generated field
+if (AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2 = CallSite<Func<CallSite, object, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "PointToScreen", (IEnumerable<Type>)null, typeof(AmiSelectSpin), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+Func<CallSite, object, object, object> target2 = AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2.Target;
+// ISSUE: reference to a compiler-generated field
+CallSite<Func<CallSite, object, object, object>> pSite2 = AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2;
+object obj1 = view;
+// ISSUE: reference to a compiler-generated field
+if (AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3 = CallSite<Func<CallSite, Type, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetPosition", (IEnumerable<Type>)null, typeof(AmiSelectSpin), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.IsStaticType, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+object obj2 = AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3.Target((CallSite)AmiSelectSpin.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3, typeof(Mouse), view);
+object obj3 = target2((CallSite)pSite2, obj1, obj2);
+Point point = target1((CallSite)pSite1, obj3);
+((Window)this).WindowStartupLocation = WindowStartupLocation.Manual;
+((Window)this).Left = point.X;
+((Window)this).Top = point.Y - 50.0;
 }
