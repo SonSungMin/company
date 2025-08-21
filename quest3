@@ -1,91 +1,64 @@
-public void SetWindowPosition(object view)
-
+private void SetRowSelect(object row, string select = "Y")
 {
-
 // ISSUE: reference to a compiler-generated field
-
-if (AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3 == null)
-
+if (AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitee == null)
 {
-
 // ISSUE: reference to a compiler-generated field
-
-AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3 = CallSite<Func<CallSite, object, Point>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(Point), typeof(AmiTreeListView)));
-
+AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitee = CallSite<Func<CallSite, object, bool>>.Create(Binder.UnaryOperation(CSharpBinderFlags.None, ExpressionType.IsTrue, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+}));
 }
-
 // ISSUE: reference to a compiler-generated field
-
-Func<CallSite, object, Point> target1 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3.Target;
-
+Func<CallSite, object, bool> target = AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitee.Target;
 // ISSUE: reference to a compiler-generated field
-
-CallSite<Func<CallSite, object, Point>> pSite3 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3;
-
+CallSite<Func<CallSite, object, bool>> pSitee = AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitee;
 // ISSUE: reference to a compiler-generated field
-
-if (AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4 == null)
-
+if (AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitef == null)
 {
-
 // ISSUE: reference to a compiler-generated field
-
-AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4 = CallSite<Func<CallSite, object, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "PointToScreen", (IEnumerable<Type>)null, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-
+AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitef = CallSite<Func<CallSite, object, object, object>>.Create(Binder.BinaryOperation(CSharpBinderFlags.None, ExpressionType.NotEqual, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
 {
-
 CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.Constant, (string) null)
 }));
-
 }
-
 // ISSUE: reference to a compiler-generated field
-
-Func<CallSite, object, object, object> target2 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4.Target;
-
 // ISSUE: reference to a compiler-generated field
-
-CallSite<Func<CallSite, object, object, object>> pSite4 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4;
-
-object obj1 = view;
-
+object obj1 = AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitef.Target((CallSite)AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Sitef, row, (object)null);
 // ISSUE: reference to a compiler-generated field
-
-if (AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5 == null)
-
+if (AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site10 == null)
 {
-
 // ISSUE: reference to a compiler-generated field
-
-AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5 = CallSite<Func<CallSite, Type, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetPosition", (IEnumerable<Type>)null, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
-
+AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site10 = CallSite<Func<CallSite, object, bool>>.Create(Binder.UnaryOperation(CSharpBinderFlags.None, ExpressionType.IsFalse, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[1]
 {
-
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.IsStaticType, (string) null),
-
 CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-
 }));
-
 }
-
+object obj2;
 // ISSUE: reference to a compiler-generated field
-
 // ISSUE: reference to a compiler-generated field
-
-object obj2 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5.Target((CallSite)AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5, typeof(Mouse), view);
-
-object obj3 = target2((CallSite)pSite4, obj1, obj2);
-
-Point point = target1((CallSite)pSite3, obj3);
-
-((Window)this).WindowStartupLocation = WindowStartupLocation.Manual;
-
-((Window)this).Left = point.X;
-
-((Window)this).Top = point.Y - (double)this.TopMargin;
-
+if (!AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site10.Target((CallSite)AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site10, obj1))
+{
+// ISSUE: reference to a compiler-generated field
+if (AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site11 == null)
+{
+// ISSUE: reference to a compiler-generated field
+AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site11 = CallSite<Func<CallSite, object, bool, object>>.Create(Binder.BinaryOperation(CSharpBinderFlags.BinaryOperationLogical, ExpressionType.And, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+{
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null)
+}));
+}
+// ISSUE: reference to a compiler-generated field
+// ISSUE: reference to a compiler-generated field
+obj2 = AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site11.Target((CallSite)AmiTreeListView.\u003CSetRowSelect\u003Eo__SiteContainerd.\u003C\u003Ep__Site11, obj1, row is DataRowView);
+}
+else
+obj2 = obj1;
+if (!target((CallSite)pSitee, obj2))
+return;
+DataRow row1 = (row as DataRowView).Row;
+if (row1 != null)
+row1["IS_SELECT"] = (object)select;
 }
