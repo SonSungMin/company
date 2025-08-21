@@ -1,46 +1,91 @@
-public AmiSimpleInputControl(string title, object view, string text) : this(title, text)
+public void SetWindowPosition(object view)
+
 {
+
 // ISSUE: reference to a compiler-generated field
-if (AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1 == null)
+
+if (AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3 == null)
+
 {
+
 // ISSUE: reference to a compiler-generated field
-AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1 = CallSite<Func<CallSite, object, Point>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(Point), typeof(AmiSimpleInputControl)));
+
+AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3 = CallSite<Func<CallSite, object, Point>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(Point), typeof(AmiTreeListView)));
+
 }
+
 // ISSUE: reference to a compiler-generated field
-Func<CallSite, object, Point> target1 = AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1.Target;
+
+Func<CallSite, object, Point> target1 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3.Target;
+
 // ISSUE: reference to a compiler-generated field
-CallSite<Func<CallSite, object, Point>> pSite1 = AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site1;
+
+CallSite<Func<CallSite, object, Point>> pSite3 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site3;
+
 // ISSUE: reference to a compiler-generated field
-if (AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2 == null)
+
+if (AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4 == null)
+
 {
+
 // ISSUE: reference to a compiler-generated field
-AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2 = CallSite<Func<CallSite, object, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "PointToScreen", (IEnumerable<Type>)null, typeof(AmiSimpleInputControl), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+
+AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4 = CallSite<Func<CallSite, object, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "PointToScreen", (IEnumerable<Type>)null, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+
 {
+
 CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
+
 CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+
 }));
+
 }
+
 // ISSUE: reference to a compiler-generated field
-Func<CallSite, object, object, object> target2 = AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2.Target;
+
+Func<CallSite, object, object, object> target2 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4.Target;
+
 // ISSUE: reference to a compiler-generated field
-CallSite<Func<CallSite, object, object, object>> pSite2 = AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site2;
+
+CallSite<Func<CallSite, object, object, object>> pSite4 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site4;
+
 object obj1 = view;
+
 // ISSUE: reference to a compiler-generated field
-if (AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3 == null)
+
+if (AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5 == null)
+
 {
+
 // ISSUE: reference to a compiler-generated field
-AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3 = CallSite<Func<CallSite, Type, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetPosition", (IEnumerable<Type>)null, typeof(AmiSimpleInputControl), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+
+AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5 = CallSite<Func<CallSite, Type, object, object>>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetPosition", (IEnumerable<Type>)null, typeof(AmiTreeListView), (IEnumerable<CSharpArgumentInfo>)new CSharpArgumentInfo[2]
+
 {
+
 CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.IsStaticType, (string) null),
+
 CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
+
 }));
+
 }
+
 // ISSUE: reference to a compiler-generated field
+
 // ISSUE: reference to a compiler-generated field
-object obj2 = AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3.Target((CallSite)AmiSimpleInputControl.ctor\u003Eo__SiteContainer0.\u003C\u003Ep__Site3, typeof(Mouse), view);
-object obj3 = target2((CallSite)pSite2, obj1, obj2);
-Point point = target1((CallSite)pSite1, obj3);
+
+object obj2 = AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5.Target((CallSite)AmiTreeListView.\u003CSetWindowPosition\u003Eo__SiteContainer2.\u003C\u003Ep__Site5, typeof(Mouse), view);
+
+object obj3 = target2((CallSite)pSite4, obj1, obj2);
+
+Point point = target1((CallSite)pSite3, obj3);
+
 ((Window)this).WindowStartupLocation = WindowStartupLocation.Manual;
+
 ((Window)this).Left = point.X;
-((Window)this).Top = point.Y - 50.0;
+
+((Window)this).Top = point.Y - (double)this.TopMargin;
+
 }
