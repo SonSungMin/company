@@ -1,59 +1,36 @@
-public void AddParameter(string colName, object value, OracleCommand command)
-{
-if (command == null)
-return;
-// ISSUE: reference to a compiler-generated field
-if (AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site5 == null)
-{
-// ISSUE: reference to a compiler-generated field
-AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site5 = CallSite>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(OracleDbType), typeof(AmiOracleBulkUploader)));
-}
-// ISSUE: reference to a compiler-generated field
-Func target1 = AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site5.Target;
-// ISSUE: reference to a compiler-generated field
-CallSite> pSite5 = AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site5;
-// ISSUE: reference to a compiler-generated field
-if (AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site6 == null)
-{
-// ISSUE: reference to a compiler-generated field
-AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site6 = CallSite>.Create(Binder.InvokeMember(CSharpBinderFlags.InvokeSimpleName, "GetOracleType", (IEnumerable)null, typeof(AmiOracleBulkUploader), (IEnumerable)new CSharpArgumentInfo[2]
-{
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-}));
-}
-// ISSUE: reference to a compiler-generated field
-Func target2 = AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site6.Target;
-// ISSUE: reference to a compiler-generated field
-CallSite> pSite6 = AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site6;
-// ISSUE: reference to a compiler-generated field
-if (AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site7 == null)
-{
-// ISSUE: reference to a compiler-generated field
-AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site7 = CallSite>.Create(Binder.InvokeMember(CSharpBinderFlags.None, "GetType", (IEnumerable)null, typeof(AmiOracleBulkUploader), (IEnumerable)new CSharpArgumentInfo[1]
-{
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null)
-}));
-}
-// ISSUE: reference to a compiler-generated field
-// ISSUE: reference to a compiler-generated field
-object obj1 = AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site7.Target((CallSite)AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site7, value);
-object obj2 = target2((CallSite)pSite6, this, obj1);
-OracleDbType oracleDbType = target1((CallSite)pSite5, obj2);
-// ISSUE: reference to a compiler-generated field
-if (AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site8 == null)
-{
-// ISSUE: reference to a compiler-generated field
-AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site8 = CallSite>.Create(Binder.InvokeMember(CSharpBinderFlags.ResultDiscarded, "Add", (IEnumerable)null, typeof(AmiOracleBulkUploader), (IEnumerable)new CSharpArgumentInfo[5]
-{
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType, (string) null),
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, (string) null),
-CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.UseCompileTimeType | CSharpArgumentInfoFlags.Constant, (string) null)
-}));
-}
-// ISSUE: reference to a compiler-generated field
-// ISSUE: reference to a compiler-generated field
-AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site8.Target((CallSite)AmiOracleBulkUploader.\u003CAddParameter\u003Eo__SiteContainer4.\u003C\u003Ep__Site8, command.Parameters, colName, oracleDbType, value, ParameterDirection.Input);
-}
+An exception of type 'Microsoft.Practices.Prism.Regions.ViewRegistrationException' occurred and was caught.
+Type : Microsoft.Practices.Prism.Regions.ViewRegistrationException
+Message : An exception has occurred while trying to add a view to region 'MainRegion'. 
+    - The most likely causing exception was was: 'Microsoft.Practices.ServiceLocation.ActivationException: Activation error occured while trying to get instance of type MainMosaic, key "" ---> Microsoft.Practices.ServiceLocation.ActivationException: Activation error occured while trying to get instance of type MainMosaic, key ""
+   위치: Microsoft.Practices.Prism.MefExtensions.MefServiceLocatorAdapter.DoGetInstance(Type serviceType, String key)
+   위치: Microsoft.Practices.ServiceLocation.ServiceLocatorImplBase.GetInstance(Type serviceType, String key)
+   --- 내부 예외 스택 추적의 끝 ---
+위치: Microsoft.Practices.ServiceLocation.ServiceLocatorImplBase.GetInstance(Type serviceType, String key)
+   위치: Microsoft.Practices.ServiceLocation.ServiceLocatorImplBase.GetInstance(Type serviceType)
+   위치: Microsoft.Practices.Prism.Regions.RegionViewRegistry.CreateInstance(Type type)
+   위치: Microsoft.Practices.Prism.Regions.RegionViewRegistry.<>cDisplayClass1.<RegisterViewWithRegion>b0()
+   위치: Microsoft.Practices.Prism.Regions.Behaviors.AutoPopulateRegionBehavior.OnViewRegistered(Object sender, ViewRegisteredEventArgs e)'.
+    But also check the InnerExceptions for more detail or call .GetRootException(). 
+Source : Microsoft.Practices.Prism
+Help link : 
+Data : System.Collections.ListDictionaryInternal
+TargetSite : Void OnContentRegistered(Microsoft.Practices.Prism.Regions.ViewRegisteredEventArgs)
+HResult : -2146233088
+    Inner Exception
+    ---------------
+    Type : Microsoft.Practices.ServiceLocation.ActivationException
+    Message : Activation error occured while trying to get instance of type MainMosaic, key ""
+    Source : Microsoft.Practices.ServiceLocation
+    Help link : 
+    Data : System.Collections.ListDictionaryInternal
+    TargetSite : System.Object GetInstance(System.Type, System.String)
+    HResult : -2146233088
+        Inner Exception
+        ---------------
+        Type : Microsoft.Practices.ServiceLocation.ActivationException
+        Message : Activation error occured while trying to get instance of type MainMosaic, key ""
+        Source : Microsoft.Practices.Prism.MefExtensions
+        Help link : 
+        Data : System.Collections.ListDictionaryInternal
+        TargetSite : System.Object DoGetInstance(System.Type, System.String)
+        HResult : -2146233088
