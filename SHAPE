@@ -1,0 +1,266 @@
+/*
+================================================================================
+함수명: MOVE_COORDS_TO_BBOX
+설  명: TM좌표를 A좌표의 바운딩 박스 중심으로 이동 및 회전시키는 함수
+작성일: 2025-11-05
+================================================================================
+파라미터:
+    p_coords_a (CLOB)   : 기준이 되는 A좌표 (형식: x,y;x,y;x,y;...)
+    p_coords_b (CLOB)   : 이동할 대상 B좌표 (형식: x,y;x,y;x,y;...)
+    
+반환값:
+    CLOB : A좌표의 바운딩 박스 중심으로 이동 및 A의 각도로 자동 정렬된 B좌표
+    
+동작원리:
+    1. A좌표의 바운딩 박스 중심점과 대각선 각도(v_a_rotation) 계산
+2. B좌표의 바운딩 박스 중심점과 대각선 각도(v_b_rotation) 계산
+    3. v_a_rotation과 v_b_rotation의 차이(v_orientation_diff_rad)를 계산 (자동 정렬 각도)
+    4. B좌표를 A의 중심점으로 이동
+5. (수정) 계산된 자동 정렬 각도(v_orientation_diff_rad)만큼 A의 중심을 기준으로 회전
+    
+사용예시:
+    -- A(세로)와 B(가로)를 자동으로 맞춤
+    SELECT MOVE_COORDS_TO_BBOX(
+        '100,200;110,250', -- A (세로)
+        '10,20;60,40'      -- B (가로)
+    ) FROM DUAL; -- B가 A처럼 세로 방향으로 자동 정렬됨
+
+    -- A와 B가 이미 같은 각도일 경우 (이동만 됨)
+    SELECT MOVE_COORDS_TO_BBOX(
+        '100,200;110,250', -- A (세로)
+        '10,20;20,40'      -- B (세로)
+    ) FROM DUAL; -- 각도 차이가 5도 미만이므로 회전 안 함
+================================================================================
+*/
+FUNCTION MOVE_COORDS_TO_BBOX(
+    p_coords_a CLOB,              -- 기준 좌표
+    p_coords_b CLOB               -- 이동할 좌표
+) RETURN CLOB
+IS
+    -- 반환할 결과 CLOB
+    v_result CLOB;
+-- A좌표의 바운딩 박스
+    v_a_min_x NUMBER := 999999999;
+    v_a_min_y NUMBER := 999999999;
+    v_a_max_x NUMBER := -999999999;
+v_a_max_y NUMBER := -999999999;
+    v_a_center_x NUMBER;
+    v_a_center_y NUMBER;
+    
+    -- A 바운딩 박스의 2개 꼭지점 (대각선)
+    v_a_left_bottom_x NUMBER;
+v_a_left_bottom_y NUMBER;
+    v_a_right_top_x NUMBER;
+    v_a_right_top_y NUMBER;
+    
+    -- A 바운딩 박스의 회전각도 (대각선 기울기)
+    v_a_rotation NUMBER := 0;
+-- B좌표의 바운딩 박스
+    v_b_min_x NUMBER := 999999999;
+    v_b_min_y NUMBER := 999999999;
+    v_b_max_x NUMBER := -999999999;
+v_b_max_y NUMBER := -999999999;
+    v_b_center_x NUMBER;
+    v_b_center_y NUMBER;
+
+    -- B 바운딩 박스의 2개 꼭지점 (대각선)
+    v_b_left_bottom_x NUMBER;
+v_b_left_bottom_y NUMBER;
+    v_b_right_top_x NUMBER;
+    v_b_right_top_y NUMBER;
+    
+    -- B 바운딩 박스의 회전각도 (대각선 기울기)
+    v_b_rotation NUMBER := 0;
+    
+-- (수정) A와 B의 각도 차이 (최종 적용될 자동 정렬 각도)
+    v_final_rotation_rad NUMBER := 0;
+    
+-- 좌표 파싱용 임시 변수
+    v_coord_pair VARCHAR2(4000);
+    v_x NUMBER;
+    v_y NUMBER;
+-- 이동 및 회전 계산용
+    v_moved_x NUMBER;
+    v_moved_y NUMBER;
+    v_final_x NUMBER;
+    v_final_y NUMBER;
+-- 문자열 파싱용 변수
+    v_pos NUMBER;
+    v_temp_coords CLOB;
+-- B좌표 저장용
+    TYPE t_coord_array IS TABLE OF NUMBER INDEX BY PLS_INTEGER;
+    v_b_x_array t_coord_array;
+    v_b_y_array t_coord_array;
+v_b_count NUMBER := 0;
+    
+BEGIN
+    /*
+    ============================================================================
+    1단계: A좌표의 바운딩 박스 계산
+    ============================================================================
+    */
+    v_temp_coords := p_coords_a;
+LOOP
+        v_pos := INSTR(v_temp_coords, ';');
+IF v_pos > 0 THEN
+            v_coord_pair := SUBSTR(v_temp_coords, 1, v_pos - 1);
+v_temp_coords := SUBSTR(v_temp_coords, v_pos + 1);
+        ELSE
+            v_coord_pair := v_temp_coords;
+END IF;
+        
+        v_x := TO_NUMBER(SUBSTR(v_coord_pair, 1, INSTR(v_coord_pair, ',') - 1));
+        v_y := TO_NUMBER(SUBSTR(v_coord_pair, INSTR(v_coord_pair, ',') + 1));
+-- 바운딩 박스 최소/최대값 갱신
+        IF v_x < v_a_min_x THEN v_a_min_x := v_x;
+END IF;
+        IF v_x > v_a_max_x THEN v_a_max_x := v_x; END IF;
+        IF v_y < v_a_min_y THEN v_a_min_y := v_y;
+END IF;
+        IF v_y > v_a_max_y THEN v_a_max_y := v_y; END IF;
+        
+        EXIT WHEN v_pos = 0;
+    END LOOP;
+-- A 바운딩 박스의 중심점
+    v_a_center_x := (v_a_min_x + v_a_max_x) / 2;
+v_a_center_y := (v_a_min_y + v_a_max_y) / 2;
+    
+    -- A 바운딩 박스의 대각선 꼭지점
+    v_a_left_bottom_x := v_a_min_x;
+v_a_left_bottom_y := v_a_min_y;
+    v_a_right_top_x := v_a_max_x;
+v_a_right_top_y := v_a_max_y;
+
+/*
+    ============================================================================
+    2단계: A 바운딩 박스의 회전각도 계산
+    ============================================================================
+    - (수정) ATAN2(dx, dy)를 사용하여 Y축(북쪽) 기준 각도 계산
+    */
+    v_a_rotation := ATAN2(
+        v_a_right_top_x - v_a_left_bottom_x,   -- dx (width)
+        v_a_right_top_y - v_a_left_bottom_y   -- dy (height)
+    );
+
+    /*
+    ============================================================================
+    3단계: B좌표의 바운딩 박스 계산 및 좌표 저장
+    ============================================================================
+    */
+    v_temp_coords := p_coords_b;
+LOOP
+        v_pos := INSTR(v_temp_coords, ';');
+IF v_pos > 0 THEN
+            v_coord_pair := SUBSTR(v_temp_coords, 1, v_pos - 1);
+v_temp_coords := SUBSTR(v_temp_coords, v_pos + 1);
+        ELSE
+            v_coord_pair := v_temp_coords;
+END IF;
+        
+        v_x := TO_NUMBER(SUBSTR(v_coord_pair, 1, INSTR(v_coord_pair, ',') - 1));
+        v_y := TO_NUMBER(SUBSTR(v_coord_pair, INSTR(v_coord_pair, ',') + 1));
+IF v_x < v_b_min_x THEN v_b_min_x := v_x; END IF;
+        IF v_x > v_b_max_x THEN v_b_max_x := v_x; END IF;
+IF v_y < v_b_min_y THEN v_b_min_y := v_y; END IF;
+        IF v_y > v_b_max_y THEN v_b_max_y := v_y; END IF;
+v_b_count := v_b_count + 1;
+        v_b_x_array(v_b_count) := v_x;
+        v_b_y_array(v_b_count) := v_y;
+        
+        EXIT WHEN v_pos = 0;
+    END LOOP;
+v_b_center_x := (v_b_min_x + v_b_max_x) / 2;
+    v_b_center_y := (v_b_min_y + v_b_max_y) / 2;
+    
+    -- B 바운딩 박스의 대각선 꼭지점
+    v_b_left_bottom_x := v_b_min_x;
+    v_b_left_bottom_y := v_b_min_y;
+    v_b_right_top_x := v_b_max_x;
+    v_b_right_top_y := v_b_max_y;
+
+    /*
+    ============================================================================
+    4단계: B 바운딩 박스의 회전각도 계산 및 A와 비교
+    ============================================================================
+    */
+    -- (수정) ATAN2(dx, dy)를 사용하여 Y축(북쪽) 기준 각도 계산
+    v_b_rotation := ATAN2(
+        v_b_right_top_x - v_b_left_bottom_x,   -- dx (width)
+        v_b_right_top_y - v_b_left_bottom_y   -- dy (height)
+    );
+
+    -- A와 B의 회전각도 차이 계산 (자동 정렬 각도)
+    v_final_rotation_rad := v_a_rotation - v_b_rotation;
+
+    -- 각도를 -π ~ π 범위로 정규화
+    WHILE v_final_rotation_rad > 3.14159265359 LOOP
+        v_final_rotation_rad := v_final_rotation_rad - 6.28318530718;
+END LOOP;
+    WHILE v_final_rotation_rad < -3.14159265359 LOOP
+        v_final_rotation_rad := v_final_rotation_rad + 6.28318530718;
+END LOOP;
+    
+    -- 180도 회전도 같은 방향으로 간주 (사각형의 대칭성)
+    IF ABS(v_final_rotation_rad) > 3.05432619099 THEN  -- 약 175도
+        IF v_final_rotation_rad > 0 THEN
+            v_final_rotation_rad := v_final_rotation_rad - 3.14159265359;
+ELSE
+            v_final_rotation_rad := v_final_rotation_rad + 3.14159265359;
+END IF;
+    END IF;
+    
+    -- 90도 배수도 체크 (사각형은 90도 회전해도 같은 모양)
+    -- 85~95도 범위면 90도로 간주하여 조정
+    IF ABS(ABS(v_final_rotation_rad) - 1.57079632679) < 0.087266 THEN  -- 90도±5도
+        IF v_final_rotation_rad > 0 THEN
+            v_final_rotation_rad := v_final_rotation_rad - 1.57079632679;
+ELSE
+            v_final_rotation_rad := v_final_rotation_rad + 1.57079632679;
+END IF;
+    END IF;
+    
+    -- 각도 차이가 5도(0.087266 rad) 미만이면 자동 정렬 각도를 0으로 처리
+    IF ABS(v_final_rotation_rad) < 0.087266 THEN
+        v_final_rotation_rad := 0;
+    END IF;
+
+    /*
+    ============================================================================
+    5단계: B좌표 변환 (A의 중심으로 이동 → 회전)
+    ============================================================================
+    */
+    DBMS_LOB.CREATETEMPORARY(v_result, TRUE);
+
+    FOR i IN 1..v_b_count LOOP
+        -- 단계 1: B를 A의 중심으로 이동
+        v_moved_x := (v_b_x_array(i) - v_b_center_x) + v_a_center_x;
+v_moved_y := (v_b_y_array(i) - v_b_center_y) + v_a_center_y;
+        
+        -- 단계 2: 최종 결정된 자동 정렬 각도(v_final_rotation_rad)로 회전
+        IF v_final_rotation_rad != 0 THEN
+            -- 회전 변환: A의 중심을 원점으로 → 회전 → 다시 A의 중심으로
+            v_final_x := (v_moved_x - v_a_center_x) * COS(v_final_rotation_rad) - 
+                        (v_moved_y - 
+v_a_center_y) * SIN(v_final_rotation_rad) + v_a_center_x;
+            v_final_y := (v_moved_x - v_a_center_x) * SIN(v_final_rotation_rad) + 
+                        (v_moved_y - v_a_center_y) * COS(v_final_rotation_rad) + v_a_center_y;
+ELSE
+            v_final_x := v_moved_x;
+            v_final_y := v_moved_y;
+        END IF;
+-- 결과 CLOB에 추가
+        IF i > 1 THEN
+            DBMS_LOB.APPEND(v_result, ';');
+END IF;
+        
+        DBMS_LOB.APPEND(v_result, TO_CHAR(v_final_x) || ',' || TO_CHAR(v_final_y));
+    END LOOP;
+    
+    RETURN v_result;
+EXCEPTION
+    WHEN OTHERS THEN
+        IF DBMS_LOB.ISTEMPORARY(v_result) = 1 THEN
+            DBMS_LOB.FREETEMPORARY(v_result);
+END IF;
+        RAISE;
+END MOVE_COORDS_TO_BBOX;
