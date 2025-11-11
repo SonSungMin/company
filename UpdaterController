@@ -1,0 +1,201 @@
+using HHI.Diagnostics;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
+using System.Text.RegularExpressions;
+using System.Web.Mvc;
+using System.Xml;
+
+#nullable disable
+namespace HHI.Deployment.Server.Controllers;
+
+public class UpdaterController : Controller
+{
+  private const string PackageBaseDirectoryKey = "PackageBaseDirectory";
+  private const string PackageCacheDurationKey = "PackageCacheDuration";
+  private const string PackageConfigFileKey = "PackageConfigFile";
+  private readonly string REMOVE_FILES = "^?\\.(dll|exe|xml)$";
+  private static readonly string _PackageBaseDirectory = ".\\Deploy";
+  private static int _CacheDuration = 0;
+  private static readonly string _PackageConfigFile = "PackageConfig.xml";
+  private static readonly object cacheLock = new object();
+
+  static UpdaterController()
+  {
+    string appSetting1 = ConfigurationManager.AppSettings["PackageBaseDirectory"];
+    UpdaterController._PackageBaseDirectory = string.IsNullOrWhiteSpace(appSetting1) ? DeployUpdateUtils.GetAbsoluteDirectoryPath(UpdaterController._PackageBaseDirectory) : DeployUpdateUtils.GetAbsoluteDirectoryPath(appSetting1);
+    string appSetting2 = ConfigurationManager.AppSettings["PackageConfigFile"];
+    if (!string.IsNullOrWhiteSpace(appSetting2))
+    {
+      UpdaterController._PackageConfigFile = DeployUpdateUtils.GetAbsolutePath(appSetting2);
+    }
+    else
+    {
+      UpdaterController._PackageConfigFile = DeployUpdateUtils.GetAbsolutePath(UpdaterController._PackageConfigFile);
+      if (!File.Exists(UpdaterController._PackageConfigFile))
+        UpdaterController._PackageConfigFile = (string) null;
+    }
+  }
+
+  private DeployPackageInfo GetPackageInfoInternal(
+    string packageDir,
+    string fileList,
+    string specificDir = null)
+  {
+    string packageDirectory = this.GetAbsolutePackageDirectory(packageDir);
+    DeployPackageHarvester packageHarvester = Directory.Exists(packageDirectory) ? new DeployPackageHarvester(packageDirectory) : throw new InvalidOperationException("PackageDirectory does not exists. dir=" + packageDirectory);
+    DeployPackageInfo package = (DeployPackageInfo) null;
+    if (package == null)
+    {
+      using (StringReader input = new StringReader(packageHarvester.GetPackageInfoFromNewDomain()))
+      {
+        using (XmlReader reader = XmlReader.Create((TextReader) input))
+        {
+          int content = (int) reader.MoveToContent();
+          package = new DeployPackageInfo(reader);
+        }
+      }
+    }
+    List<string> stringList1 = (List<string>) null;
+    if (!string.IsNullOrWhiteSpace(fileList))
+      stringList1 = JsonConvert.DeserializeObject<List<string>>(fileList);
+    List<string> stringList2 = new List<string>();
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) package.Files)
+    {
+      DeployFileInfo fileInfo = file;
+      if (string.Compare("PackageInfo.xml", fileInfo.FileName, true) == 0)
+        stringList2.Add(fileInfo.FullName);
+      if (stringList1 != null && stringList1.Count > 0)
+      {
+        string name = new FileInfo(fileInfo.GetFilePath(packageHarvester.BaseDirectory)).Directory.Name;
+        if (new DirectoryInfo(packageHarvester.BaseDirectory).Name.Equals(name, StringComparison.OrdinalIgnoreCase) && new Regex(this.REMOVE_FILES, RegexOptions.IgnoreCase).Match(fileInfo.FileName).Success && !stringList1.Exists((Predicate<string>) (d => d.Equals(fileInfo.FileName, StringComparison.OrdinalIgnoreCase))))
+          stringList2.Add(fileInfo.FullName);
+      }
+    }
+    foreach (string element in stringList2)
+      package.Files.Remove(element);
+    if (!string.IsNullOrWhiteSpace(specificDir))
+    {
+      List<DeployFileInfo> deployFileInfoList = new List<DeployFileInfo>();
+      for (int index = package.Files.Count - 1; index >= 0; --index)
+      {
+        DeployFileInfo file = package.Files[index];
+        if (file.Path.Contains($"~/{specificDir}/"))
+        {
+          file.Shared = true;
+          deployFileInfoList.Add(file);
+        }
+      }
+      package.Files.Clear();
+      deployFileInfoList.ForEach((Action<DeployFileInfo>) (p => package.Files.Add(p)));
+    }
+    return package;
+  }
+
+  public ActionResult Index()
+  {
+    this.Response.Output.Write("This is updater controller.");
+    this.WriteLog(UpdaterController.State.PackageFileDownload, "Text.xml");
+    return (ActionResult) new EmptyResult();
+  }
+
+  [HttpPost]
+  public ActionResult GetPackageInfo(string packageDir, string fileList, string specificDir = null)
+  {
+    try
+    {
+      DeployPackageInfo packageInfoInternal = this.GetPackageInfoInternal(packageDir, fileList, specificDir);
+      XmlWriter writer = XmlWriter.Create(this.Response.Output, new XmlWriterSettings()
+      {
+        Indent = true
+      });
+      writer.WriteStartDocument();
+      packageInfoInternal.Save(writer);
+      writer.Flush();
+      this.Response.ContentType = "text/xml";
+      this.WriteLog(UpdaterController.State.PackageFileDownload, UpdaterController._PackageConfigFile);
+    }
+    catch (Exception ex)
+    {
+      LogManagerEx.GetLogger("HHI.Deployment.Server").Write("Updater", LogLevelEx.Error, (object) ex);
+      return (ActionResult) new HttpNotFoundResult($"\"{packageDir}\" Package Directory Not Exist");
+    }
+    return (ActionResult) new EmptyResult();
+  }
+  [HttpPost]
+  public ActionResult Download(string packageDir, string subDir, string filename)
+  {
+    string packageDirectory = this.GetAbsolutePackageDirectory(packageDir);
+    if (string.IsNullOrWhiteSpace(subDir))
+      subDir = "~/";
+    string str = subDir + filename;
+    string realFileName = DeployUpdateUtils.GetRealFileName(DeployUpdateUtils.GetFilePath(str, packageDirectory));
+    if (File.Exists(realFileName))
+    {
+      FileStreamResult fileStreamResult = new FileStreamResult((Stream) new FileStream(realFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite), "application/octet-stream");
+      this.WriteLog(UpdaterController.State.FileDownload, str);
+      return (ActionResult) fileStreamResult;
+    }
+    HttpNotFoundResult httpNotFoundResult = new HttpNotFoundResult($"Download File Not Found \"{filename}\"");
+    this.WriteLog(UpdaterController.State.FileNotFound, str);
+    return (ActionResult) httpNotFoundResult;
+  }
+  [HttpPost]
+  public ActionResult DownloadSplitter(
+    string packageDir,
+    string subDir,
+    string filename,
+    int bufferSize,
+    int position)
+  {
+    string packageDirectory = this.GetAbsolutePackageDirectory(packageDir);
+    if (string.IsNullOrWhiteSpace(subDir))
+      subDir = "~/";
+    string str = subDir + filename;
+    string realFileName = DeployUpdateUtils.GetRealFileName(DeployUpdateUtils.GetFilePath(str, packageDirectory));
+    if (File.Exists(realFileName))
+    {
+      byte[] buffer = new byte[bufferSize];
+      using (FileStream fileStream = new FileStream(realFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, buffer.Length))
+      {
+        fileStream.Position = (long) position;
+        fileStream.Read(buffer, 0, buffer.Length);
+        this.WriteLog(UpdaterController.State.FileDownload, str);
+        return (ActionResult) this.File(buffer, "application/octet-stream");
+      }
+    }
+    HttpNotFoundResult httpNotFoundResult = new HttpNotFoundResult($"Download File Not Found \"{filename}\"");
+    this.WriteLog(UpdaterController.State.FileNotFound, str);
+    return (ActionResult) httpNotFoundResult;
+  }
+
+  private string GetAbsolutePackageDirectory(string packageDir)
+  {
+    return DeployUpdateUtils.Combine(DeployUpdateUtils.GetAbsoluteDirectoryPath(UpdaterController._PackageBaseDirectory), packageDir);
+  }
+
+  private void WriteLog(UpdaterController.State state, string FileName)
+  {
+    try
+    {
+      string str1 = this.Request.Params["UserName"];
+      string str2 = this.Request.Params["MachineName"];
+      string str3 = this.Request.Params["IP"];
+      LogManagerEx.GetLogger("HHI.Deployment.Server").WriteFormat("Updater", LogLevelEx.Information, "State:{0}, FileName:{1} IP:{2} MachineName:{3} UserName:{4}", (object) state.ToString(), (object) FileName, (object) str3, (object) str2, (object) str1);
+    }
+
+    catch (Exception ex)
+    {
+      LogManagerEx.SafeLogger.Write(LogLevelEx.Error, (object) ex.ToString());
+    }
+  }
+
+  private enum State
+  {
+    PackageFileDownload,
+    FileDownload,
+    FileNotFound,
+  }
+}
