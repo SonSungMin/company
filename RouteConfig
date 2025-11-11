@@ -1,0 +1,19 @@
+using System.Web.Mvc;
+using System.Web.Routing;
+
+#nullable disable
+namespace HHI.Deployment.Server;
+
+public class RouteConfig
+{
+  public static void RegisterRoutes(RouteCollection routes)
+  {
+    RouteCollectionExtensions.IgnoreRoute(routes, "{resource}.axd/{*pathInfo}");
+    RouteCollectionExtensions.MapRoute(routes, "Default", "{controller}/{action}/{id}", (object) new
+    {
+      controller = "Updater",
+      action = "Index",
+      id = UrlParameter.Optional
+    });
+  }
+}
