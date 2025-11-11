@@ -1,0 +1,15 @@
+using System.Web;
+using System.Web.Mvc;
+using System.Web.Routing;
+
+#nullable disable
+namespace HHI.Deployment.Server;
+
+public class MvcApplication : HttpApplication
+{
+  protected void Application_Start()
+  {
+    AreaRegistration.RegisterAllAreas();
+    RouteConfig.RegisterRoutes(RouteTable.Routes);
+  }
+}
