@@ -1,0 +1,961 @@
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Deployment.Application;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Xml;
+
+#nullable disable
+namespace HHI.Deployment;
+
+/// <summary>다운로드 가능한 파일 목록을 수집하고, 파일을 다운로드 합니다.</summary>
+public class DeployUpdateController
+{
+  private const string QUERY_STRING = "__Query";
+  private const string UPDATE_LAUNCHER_EXIST = "__UpdateLauncherExist";
+  private const string UPDATER_URL = "__UpdaterUrl";
+  private const string IS_DEVELOPMENT = "__Development";
+  private const double MEGA = 1048576.0;
+  private const string MANIFEST_FILE = "PackageInfo.xml";
+  private DeployLogger _logger;
+  private IDeployUpdateEvent _eventSink;
+  private DeployUpdateSettings _settings;
+  private string _localBaseDir;
+  private string _updaterUrl;
+  private string _queryString;
+  private string _specifiDirectory;
+  private List<DeployFileInfo> _downloadFails = (List<DeployFileInfo>) null;
+  private static HttpClient client;
+  private int MaxBuffer = 16192;
+  private int MaxRetyCount = 3;
+
+  /// <summary>DeployUpdaterController 클래스의 새 인스턴스를 초기화 합니다.</summary>
+  /// <param name="eventSink">Updater 이벤트 통지를 받는 개체입니다.</param>
+  /// <param name="settings">Updater 설정 정보입니다.</param>
+  public DeployUpdateController(IDeployUpdateEvent eventSink, DeployUpdateSettings settings)
+  {
+    if (settings == null)
+      throw new ArgumentNullException(nameof (settings));
+    this._eventSink = eventSink;
+    this._settings = settings;
+    this._logger = new DeployLogger();
+    this._downloadFails = new List<DeployFileInfo>();
+    this._logger.Enabled = settings.LogEnabled;
+    if (this._settings != null)
+    {
+      this._localBaseDir = DeployUpdateUtils.GetAbsoluteDirectoryPath(this._settings.LocalDirectory);
+      this._specifiDirectory = this._settings.SpecifyDirectory;
+    }
+    if (ApplicationDeployment.IsNetworkDeployed)
+    {
+      if (ApplicationDeployment.CurrentDeployment.UpdateLocation != (Uri) null)
+        this._updaterUrl = ApplicationDeployment.CurrentDeployment.UpdateLocation.AbsoluteUri;
+      if (ApplicationDeployment.CurrentDeployment.ActivationUri != (Uri) null)
+        this._queryString = ApplicationDeployment.CurrentDeployment.ActivationUri.Query;
+    }
+    if (DeployUpdateController.client != null)
+      return;
+    DeployUpdateController.client = new HttpClient();
+    DeployUpdateController.client.Timeout = TimeSpan.FromMinutes(10.0);
+  }
+
+  /// <summary>설정을 사용하여 업데이트 서버로부터 업데이트를 수행합니다.</summary>
+  public void UpdateAsync()
+  {
+    new Task((Action) (() =>
+    {
+      try
+      {
+        if (string.IsNullOrWhiteSpace(this._settings.LocalDirectory))
+          throw new ArgumentException(HHI.Deployment.Properties.Resources.DeployUpdateController_UpdateAsync_ArgumentException_1);
+        if (string.IsNullOrWhiteSpace(this._settings.DownloadServerUrl))
+          throw new ArgumentException(HHI.Deployment.Properties.Resources.DeployUpdateController_UpdateAsync_ArgumentException_2);
+        this.ShowMessage("Update started...");
+        string str = Path.Combine(this._localBaseDir, "PackageInfo.xml");
+        this.ValidateInstalledPath();
+        bool update = false;
+        if (!this._settings.IsOffLineApplication || this._settings.IsOffLineApplication && this.IsNetworkAvailable)
+        {
+          DeployPackageInfo installedPackage1 = this.GetInstalledPackage(str);
+          DeployPackageInfo installedPackage2 = this.GetInstalledPackage(str);
+          installedPackage2.MergeFromConfigPackageInfo(installedPackage2);
+          this.ShowMessage("Get Server Package...");
+          DeployPackageInfo serverPackage = this.GetServerPackage();
+          this.ShowMessage("Check for Update...");
+          DeployPackageInfo package = this.CheckForUpdate(installedPackage1, serverPackage);
+          if (package.CheckChanges())
+          {
+            this.OnShowDialog();
+            this._logger.WriteInfo("Begin predownload action.");
+            this.PreAction(package);
+            this._logger.WriteInfo("End predownload action.");
+            this.ShowMessage("Download files...");
+            this._logger.WriteInfo("Begin download files.");
+            this.InternalDownload(package);
+            update = this._downloadFails.Count > 0;
+            this._logger.WriteInfo("Update Exist : {0}, {1}", (object) update, (object) this._downloadFails.Count);
+            List<DeployFileInfo> deployFileInfoList = new List<DeployFileInfo>();
+            List<string> pacakgeInfos = new List<string>();
+            foreach (DeployFileInfo downloadFail in this._downloadFails)
+            {
+              DeployFileInfo fileInfo = installedPackage2.Files.GetFileInfo(downloadFail.FullName);
+              if (fileInfo != null)
+              {
+                package.Files.Remove(downloadFail.FullName);
+                this._logger.WriteInfo("undo file : {0} {1}", (object) fileInfo.FullName, (object) fileInfo.LastModified);
+                deployFileInfoList.Add(fileInfo);
+              }
+              this._logger.WriteInfo("download fail file : {0}", (object) downloadFail.FullName);
+              pacakgeInfos.Add(downloadFail.FileName);
+            }
+            this.OnUpdate(pacakgeInfos);
+            this._logger.WriteInfo("End download files.");
+            this._logger.WriteInfo("Begin post download action.");
+            this.PostAction(package);
+            this._logger.WriteInfo("End post download action.");
+            DeployPackageInfo deployPackageInfo = new DeployPackageInfo();
+            foreach (DeployFileInfo file in (ConfigurationElementCollection) package.Files)
+              deployPackageInfo.Files.Add(file);
+            foreach (DeployFileInfo element in deployFileInfoList)
+              deployPackageInfo.Files.Add(element);
+            using (XmlWriter writer = XmlWriter.Create(str, new XmlWriterSettings()
+            {
+              Indent = true
+            }))
+            {
+              deployPackageInfo.Save(writer);
+              writer.Flush();
+            }
+            this._logger.WriteInfo("Save local version manifest file : {0}", (object) str);
+          }
+        }
+        this.StartProcess(this._updaterUrl, this._queryString, update);
+        this.OnCompleted();
+      }
+      catch (Exception ex)
+      {
+        this._logger.WriteError("Exception : {0}", (object) ex.ToString());
+        this.OnError(ex);
+      }
+    })).Start();
+  }
+  /// <summary>변경된 파일들의 이름을 가져옵니다.</summary>
+  /// <returns>변경된 파일 이름 컬렉션입니다.</returns>
+  public List<string> GetChangedFiles()
+  {
+    if (string.IsNullOrWhiteSpace(this._settings.LocalDirectory))
+      throw new ArgumentException(HHI.Deployment.Properties.Resources.DeployUpdateController_GetChangedFiles_ArgumentException_1);
+    if (string.IsNullOrWhiteSpace(this._settings.DownloadServerUrl))
+      throw new ArgumentException(HHI.Deployment.Properties.Resources.DeployUpdateController_GetChangedFiles_ArgumentException_2);
+    string installedManifestPath = Path.Combine(this._localBaseDir, "PackageInfo.xml");
+    this.ValidateInstalledPath();
+    DeployPackageInfo deployPackageInfo = this.CheckForUpdate(this.GetInstalledPackage(installedManifestPath), this.GetServerPackage());
+    List<string> changedFiles = new List<string>();
+    if (deployPackageInfo.CheckChanges())
+    {
+      foreach (DeployFileInfo file in (ConfigurationElementCollection) deployPackageInfo.Files)
+      {
+        if (file.State == FxFileState.Modified)
+          changedFiles.Add(file.FileName.ToLower());
+      }
+    }
+    return changedFiles;
+  }
+  /// <summary>지정한 어셈블리에 대하여 빌드시간(LastModified)을 가져옵니다.</summary>
+  /// <param name="fileName">어셈블리명</param>
+  /// <returns></returns>
+  public string GetBuildTime(string fileName)
+  {
+    string installedManifestPath = Path.Combine(this._localBaseDir, "PackageInfo.xml");
+    string buildTime = (string) null;
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) this.GetInstalledPackage(installedManifestPath).Files)
+    {
+      if (file.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase))
+      {
+        buildTime = file.LastModified;
+        break;
+      }
+    }
+    return buildTime;
+  }
+  /// <summary>지정한 어셈블리에 대하여 버전을 가져옵니다.</summary>
+  /// <param name="fileName">어셈블리명</param>
+  /// <returns></returns>
+  public string GetVersion(string fileName)
+  {
+    string installedManifestPath = Path.Combine(this._localBaseDir, "PackageInfo.xml");
+    string version = (string) null;
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) this.GetInstalledPackage(installedManifestPath).Files)
+    {
+      if (file.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase))
+      {
+        version = file.Version;
+        break;
+      }
+    }
+    return version;
+  }
+  private void ValidateInstalledPath()
+  {
+    this._logger.WriteInfo("----------------------------------------");
+    this._logger.WriteInfo("Check launcher local path.");
+    this._logger.WriteInfo("Launcher local path : {0}", (object) this._localBaseDir);
+    if (Directory.Exists(this._localBaseDir))
+      return;
+    this._logger.WriteInfo("Create launcher local directory : {0}", (object) this._localBaseDir);
+    Directory.CreateDirectory(this._localBaseDir);
+  }
+
+  private DeployPackageInfo GetInstalledPackage(string installedManifestPath)
+  {
+    this._logger.WriteInfo("Check local version manifest file");
+    DeployPackageInfo installedPackage;
+    if (!System.IO.File.Exists(installedManifestPath))
+    {
+      this._logger.WriteInfo("Not found local version manifest file.");
+      installedPackage = new DeployPackageInfo();
+    }
+    else
+    {
+      this._logger.WriteInfo("Found local version manifest file : {0}", (object) installedManifestPath);
+      try
+      {
+        installedPackage = new DeployPackageInfo(installedManifestPath);
+        this.ValidateInstalledPackage(installedPackage);
+      }
+      catch (Exception ex)
+      {
+        this._logger.WriteInfo("Error local version manifest file : {0}", (object) ex.Message);
+        installedPackage = new DeployPackageInfo();
+      }
+    }
+    return installedPackage;
+  }
+  private DeployPackageInfo GetServerPackage()
+  {
+    this._logger.WriteInfo("Check server version manifest data");
+    string str = (string) null;
+    if (this._settings.SytemUIDlls != null)
+      str = JsonConvert.SerializeObject((object) this._settings.SytemUIDlls);
+    string url = $"{this._settings.DownloadServerUrl}/{this._settings.VersionManifest}";
+    Dictionary<string, string> parameter = new Dictionary<string, string>()
+    {
+      {
+        "packageDir",
+        string.IsNullOrWhiteSpace(this._settings.SystemDirectory) ? this._settings.LauncherDirectory : this._settings.SystemDirectory
+      },
+      {
+        "fileList",
+        str
+      },
+      {
+        "specificDir",
+        this._settings.SpecifyDirectory
+      }
+    };
+    this._logger.WriteInfo("Get server version manifest data: {0}", (object) url);
+    DeployPackageInfo serverPackage = this.GetServerPackage(url, parameter);
+    this._logger.WriteInfo("Completed get server version manifest data : {0}", (object) JsonConvert.SerializeObject((object) parameter, Newtonsoft.Json.Formatting.None));
+    return serverPackage;
+  }
+  private void ValidateInstalledPackage(DeployPackageInfo installedPackage)
+  {
+    for (int index = installedPackage.Files.Count - 1; index >= 0; --index)
+    {
+      DeployFileInfo file = installedPackage.Files[index];
+      string filePath = file.GetFilePath(this._localBaseDir);
+      if (System.IO.File.Exists(filePath))
+      {
+        FileInfo fileInfo = new FileInfo(filePath);
+        file.Length = fileInfo.Length;
+      }
+      else
+        installedPackage.Files.Remove(file.FullName);
+    }
+  }
+
+
+  private void PreAction(DeployPackageInfo package)
+  {
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) package.Files)
+    {
+      if ((file.State == FxFileState.Modified || file.State == FxFileState.Deleted) && file.UninstallAction.Action == FxFileAction.Unregister)
+      {
+        this.ShowMessage($"Unregister : {file.FileName}");
+        this.UnregisterAssembly(file.StrongName, file.ProcessorArchitecture);
+      }
+    }
+  }
+  private void PostAction(DeployPackageInfo package)
+  {
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) package.Files)
+    {
+      if (file.State == FxFileState.Modified || file.State == FxFileState.Added)
+      {
+        if (file.InstallAction.Action == FxFileAction.Execute)
+          Process.Start(file.InstallAction.Command, file.InstallAction.Argument);
+        else if (file.InstallAction.Action == FxFileAction.Register)
+        {
+          this.ShowMessage($"Register : {file.FullName} {file.Version}");
+          this.RegisterAssembly(file.GetFilePath(this._localBaseDir));
+        }
+        else if (file.InstallAction.Action == FxFileAction.CopyToLocal)
+          this.CopyToLocal(file);
+      }
+    }
+  }
+  private void OnShowDialog()
+  {
+    if (this._eventSink == null)
+      return;
+    this._eventSink.OnShowDialog((object) this, new DeployUpdateEventArgs());
+  }
+
+  private void OnCompleted()
+  {
+    if (this._eventSink == null)
+      return;
+    this._eventSink.OnCompleted((object) this, new DeployUpdateEventArgs());
+  }
+
+  private void OnError(Exception exception)
+  {
+    if (this._eventSink == null)
+      return;
+    this._eventSink.OnError((object) this, new FxUpdateErrorEventArgs(exception, this._logger.LogFileName));
+  }
+  private void OnUpdate(List<string> pacakgeInfos)
+  {
+    if (this._eventSink == null)
+      return;
+    this._eventSink.OnUpdate((object) this, new FxDeployUpdateListEventArgs(pacakgeInfos, this._logger.LogFileName));
+  }
+
+  private void StartProcess(string updaterUrl, string queryString, bool update = false)
+  {
+    if (string.IsNullOrWhiteSpace(this._settings.LauncherName))
+      return;
+    string str = Path.Combine(this._localBaseDir, this._settings.LauncherName);
+    this._logger.WriteInfo("Prepare launch application : {0}", (object) str);
+    ProcessStartInfo startInfo = new ProcessStartInfo(str);
+    startInfo.WorkingDirectory = Path.GetDirectoryName(str);
+    startInfo.UseShellExecute = false;
+    if (!string.IsNullOrWhiteSpace(updaterUrl))
+    {
+      this.SetEnvironmentVariables(startInfo, "__UpdaterUrl", updaterUrl);
+      this._logger.WriteInfo("__UpdaterUrl : {0}", (object) updaterUrl);
+    }
+    if (!string.IsNullOrWhiteSpace(queryString))
+    {
+      this.SetEnvironmentVariables(startInfo, "__Query", queryString);
+      this._logger.WriteInfo("QueryString : {0}", (object) queryString);
+    }
+    this.ShowMessage("Launch application. Please wait a moment.");
+    this._logger.WriteInfo("Launch application : {0}", (object) this._settings.LauncherName);
+    this.SetEnvironmentVariables(startInfo, "__UpdateLauncherExist", update ? "True" : "False");
+    this._logger.WriteInfo("PROCESS_NAME : {0}", (object) str);
+    if (this._settings.IsDevelopment)
+      startInfo.Arguments = "/dev";
+    Process.Start(startInfo);
+    Thread.Sleep(300);
+  }
+
+  private void SetEnvironmentVariables(ProcessStartInfo startInfo, string key, string value)
+  {
+    if (startInfo.EnvironmentVariables.ContainsKey(key))
+    {
+      startInfo.EnvironmentVariables[key] = value;
+    }
+    else
+    {
+      try
+      {
+        startInfo.EnvironmentVariables.Add(key, value);
+      }
+      catch
+      {
+      }
+    }
+  }
+
+  private DeployPackageInfo GetServerPackage(string url, Dictionary<string, string> parameter)
+  {
+    int num = 0;
+    Stream requestWithPostData;
+    while (true)
+    {
+      try
+      {
+        requestWithPostData = this.CreateHttpWebRequestWithPostData(url, parameter);
+        break;
+      }
+      catch (Exception ex)
+      {
+        ++num;
+        if (num > this.MaxRetyCount)
+          throw ex;
+        Thread.Sleep(1000);
+      }
+    }
+    return new DeployPackageInfo(requestWithPostData);
+  }
+
+  private DeployPackageInfo CheckForUpdate(
+    DeployPackageInfo localPackage,
+    DeployPackageInfo serverPackage)
+  {
+    Dictionary<string, DeployFileInfo> dictionary = new Dictionary<string, DeployFileInfo>((IEqualityComparer<string>) StringComparer.InvariantCultureIgnoreCase);
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) serverPackage.Files)
+    {
+      this._logger.WriteInfo("serverPackage : {0}", (object) file.FullName);
+      if (!dictionary.ContainsKey(file.FullName))
+        dictionary.Add(file.FullName, file);
+    }
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) localPackage.Files)
+    {
+      DeployFileInfo deployFileInfo = (DeployFileInfo) null;
+      if (dictionary.TryGetValue(file.FullName, out deployFileInfo))
+      {
+        dictionary.Remove(file.FullName);
+        DateTime.Compare(DateTime.Parse(file.LastModified), DateTime.Parse(deployFileInfo.LastModified));
+        if (!string.IsNullOrWhiteSpace(file.Version))
+        {
+          if (file.Version == deployFileInfo.Version && file.LastModified == deployFileInfo.LastModified && file.Length == deployFileInfo.Length)
+          {
+            file.State = FxFileState.None;
+          }
+          else
+          {
+            file.State = FxFileState.Modified;
+            file.Version = deployFileInfo.Version;
+            file.HashCode = deployFileInfo.HashCode;
+            file.LastModified = deployFileInfo.LastModified;
+            file.Length = deployFileInfo.Length;
+          }
+
+        }
+        else if (file.LastModified == deployFileInfo.LastModified && file.Length == deployFileInfo.Length)
+        {
+          file.State = FxFileState.None;
+        }
+        else
+        {
+          file.State = FxFileState.Modified;
+          file.Version = deployFileInfo.Version;
+          file.HashCode = deployFileInfo.HashCode;
+          file.LastModified = deployFileInfo.LastModified;
+          file.Length = deployFileInfo.Length;
+        }
+      }
+      else
+      {
+        try
+        {
+          if (!this.ExistLauncher())
+          {
+            using (System.IO.File.Open(file.GetFilePath(this._localBaseDir), FileMode.Open))
+              ;
+            file.State = FxFileState.Deleted;
+            if (file.Shared || !string.IsNullOrWhiteSpace(this._settings.SpecifyDirectory))
+              file.State = FxFileState.None;
+          }
+          else
+            file.State = FxFileState.None;
+        }
+        catch (IOException ex)
+        {
+          this._logger.WriteInfo("File State Change Error : {0}", (object) ex.Message);
+          file.State = FxFileState.None;
+        }
+      }
+    }
+    foreach (DeployFileInfo element in dictionary.Values)
+    {
+      element.State = FxFileState.Added;
+      localPackage.Files.Add(element);
+    }
+    return localPackage;
+  }
+
+  /// <summary>파일의 잠금 상태 확인</summary>
+  /// <param name="filePath"></param>
+  /// <param name="secondsToWait"></param>
+  /// <returns></returns>
+  public bool IsFileLocked(string filePath, int secondsToWait = 1)
+  {
+    bool flag = true;
+    int num1 = 0;
+    while (flag && (num1 < secondsToWait || secondsToWait == 0))
+    {
+      try
+      {
+        using (System.IO.File.Open(filePath, FileMode.Open))
+          ;
+        return false;
+      }
+      catch (IOException ex)
+      {
+        int num2 = Marshal.GetHRForException((Exception) ex) & (int) ushort.MaxValue;
+        flag = num2 == 32 /*0x20*/ || num2 == 33;
+        ++num1;
+        if (secondsToWait != 0)
+          new ManualResetEvent(false).WaitOne(1000);
+      }
+    }
+    return flag;
+  }
+
+  private void InternalDownload(DeployPackageInfo package)
+  {
+    double num1 = 0.0;
+    double num2 = 0.0;
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) package.Files)
+    {
+      if (file.State == FxFileState.Added || file.State == FxFileState.Modified)
+        num1 += (double) file.Length;
+    }
+    double totalSize = num1 / 1048576.0;
+    int count = 0;
+    int totalCount = 0;
+    double currentReceiveSize = 0.0;
+    List<DeployFileInfo> deployFileInfoList = new List<DeployFileInfo>();
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) package.Files)
+    {
+      if (file.State == FxFileState.Added || file.State == FxFileState.Modified)
+        ++totalCount;
+      deployFileInfoList.Add(file);
+    }
+    foreach (DeployFileInfo file in (ConfigurationElementCollection) package.Files)
+    {
+      string str = file.GetFilePath(this._localBaseDir);
+      if (file.MapFileExtensions)
+        str = Path.Combine(Path.GetDirectoryName(str), Path.GetFileNameWithoutExtension(str));
+      if (file.State == FxFileState.Added || file.State == FxFileState.Modified)
+      {
+        ++count;
+        string filename = (string) null;
+        string downloadUrl = file.GetDownloadUrl(this._settings.DownloadServerUrl, out filename);
+        if (!string.IsNullOrWhiteSpace(file.Path))
+        {
+          string filePath = DeployUpdateUtils.GetFilePath(file.Path, this._localBaseDir);
+          if (!Directory.Exists(filePath))
+            Directory.CreateDirectory(filePath);
+        }
+        try
+        {
+          Dictionary<string, string> dictionary = new Dictionary<string, string>()
+          {
+            {
+              "packageDir",
+              string.IsNullOrWhiteSpace(this._settings.SystemDirectory) ? this._settings.LauncherDirectory : this._settings.SystemDirectory
+            },
+            {
+              "subDir",
+              file.Path
+            },
+            {
+              "filename",
+              filename
+            }
+          };
+          this.ShowMessage($"{filename} Downloading : {currentReceiveSize:N2}MB / {totalSize:N2}MB ({count}/{totalCount})", $"({currentReceiveSize * 100.0 / totalSize:N0}%) ", totalSize * 1024.0 * 1024.0, num2);
+          bool flag;
+          try
+          {
+            flag = this.DownloadFile(downloadUrl, str, dictionary);
+          }
+          catch
+          {
+            Thread.Sleep(1000);
+            try
+            {
+              flag = this.DownloadFileSplitter(downloadUrl, str, dictionary, (int) file.Length, filename, currentReceiveSize, totalSize, count, totalCount, num2);
+            }
+            catch (Exception ex)
+            {
+              throw ex;
+            }
+          }
+          if (!flag)
+          {
+            this._downloadFails.Add(file);
+            this._logger.WriteInfo("failed download : {0}", (object) filename);
+          }
+          else
+            this._logger.WriteInfo("Completed download : {0}", (object) filename);
+          num2 += (double) file.Length;
+          currentReceiveSize = num2 / 1048576.0;
+          this.ShowMessage($"{filename} Downloaded : {currentReceiveSize:N2}MB / {totalSize:N2}MB ({count}/{totalCount})", $"({currentReceiveSize * 100.0 / totalSize:N0}%) ", totalSize * 1024.0 * 1024.0, num2);
+        }
+        catch (Exception ex)
+        {
+          this._logger.WriteError("Failed download : {0}\r\n{1}", (object) downloadUrl, (object) ex.ToString());
+          throw;
+        }
+      }
+      else if (file.State == FxFileState.Deleted)
+      {
+        try
+        {
+          System.IO.File.Delete(str);
+          deployFileInfoList.Remove(file);
+          this._logger.WriteInfo("Deleted file : {0}", (object) str);
+        }
+        catch (Exception ex)
+        {
+          this._logger.WriteInfo("Failed delete file : {0}\r\n{1}", (object) str, (object) ex.Message);
+        }
+      }
+    }
+    this.DeleteEmptyDirectory(new DirectoryInfo(this._localBaseDir));
+    package.Files.Clear();
+    foreach (DeployFileInfo element in deployFileInfoList)
+      package.Files.Add(element);
+    this.ShowMessage($"Completed download files. ({count}/{totalCount})", "(100%) ", 100.0, 100.0);
+  }
+
+  private bool DownloadFileSplitter(
+    string url,
+    string localFileName,
+    Dictionary<string, string> parameter,
+    int itemLength,
+    string filename,
+    double currentReceiveSize,
+    double totalSize,
+    int count,
+    int totalCount,
+    double receivedSize)
+  {
+    parameter["IP"] = this.UrlEncode(this.GetIpAddress());
+    parameter["UserName"] = this.UrlEncode(Environment.UserName);
+    parameter["MachineName"] = this.UrlEncode(Environment.MachineName);
+    byte[] buffer = (byte[]) null;
+    int num1 = 0;
+    int num2 = this.MaxBuffer;
+    if (this.MaxBuffer > itemLength)
+      num2 = itemLength;
+    url = $"{this._settings.DownloadServerUrl}/downloadsplitter?file={1}";
+    do
+    {
+      int num3 = 0;
+      parameter["bufferSize"] = num2.ToString();
+      parameter["position"] = num1.ToString();
+      while (true)
+      {
+        try
+        {
+          using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
+          {
+            FormUrlEncodedContent content = new FormUrlEncodedContent((IEnumerable<KeyValuePair<string, string>>) parameter);
+            using (HttpResponseMessage result = DeployUpdateController.client.PostAsync(url, (HttpContent) content, cancellationTokenSource.Token).GetAwaiter().GetResult())
+            {
+              if (!result.IsSuccessStatusCode)
+                throw new Exception(result.ReasonPhrase);
+              using (Task<byte[]> task = result.Content.ReadAsByteArrayAsync())
+              {
+                buffer = task.Result;
+                break;
+              }
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          ++num3;
+          if (num3 > 10)
+            throw ex;
+          Thread.Sleep(5000);
+        }
+      }
+      if (num1 == 0)
+      {
+        int num4 = 0;
+        while (true)
+        {
+          try
+          {
+            using (FileStream fileStream = new FileStream(localFileName, FileMode.Create, FileAccess.Write))
+            {
+              fileStream.Write(buffer, 0, buffer.Length);
+              break;
+            }
+          }
+          catch (Exception ex)
+          {
+            ++num4;
+            if (num4 > this.MaxRetyCount)
+              throw ex;
+            Thread.Sleep(1000);
+          }
+        }
+      }
+      else
+      {
+        int num5 = 0;
+        while (true)
+        {
+          try
+          {
+            using (FileStream fileStream = new FileStream(localFileName, FileMode.Append, FileAccess.Write))
+            {
+              fileStream.Write(buffer, 0, buffer.Length);
+              break;
+            }
+          }
+          catch (Exception ex)
+          {
+            ++num5;
+            if (num5 > this.MaxRetyCount)
+              throw ex;
+            Thread.Sleep(1000);
+          }
+        }
+      }
+      currentReceiveSize = (receivedSize + (double) num1) / 1048576.0;
+      this.ShowMessage($"{filename} Downloaded : {currentReceiveSize:N2}MB / {totalSize:N2}MB ({count}/{totalCount})", $"({currentReceiveSize * 100.0 / totalSize:N0}%) ", totalSize * 1024.0 * 1024.0, receivedSize);
+      num1 += num2;
+      num2 = itemLength - num1 <= this.MaxBuffer ? itemLength - num1 : this.MaxBuffer;
+    }
+    while (itemLength > num1);
+    return true;
+  }
+  private bool DownloadFile(string url, string localFileName, Dictionary<string, string> values)
+  {
+    url = $"{this._settings.DownloadServerUrl}/download?file={DateTime.Now.ToString("yyyyMMddHHmmssfff")}";
+    Stream requestWithPostData = this.CreateHttpWebRequestWithPostData(url, values);
+    if (requestWithPostData != null)
+    {
+      if (System.IO.File.Exists(localFileName))
+      {
+        if (!this.IsFileLocked(localFileName))
+        {
+          System.IO.File.Delete(localFileName);
+        }
+        else
+        {
+          requestWithPostData.Close();
+          this._logger.WriteInfo("Failed delete file - FileLock : {0}", (object) localFileName);
+          return false;
+        }
+      }
+      int count1 = 65536 /*0x010000*/;
+      FileStream fileStream = new FileStream(localFileName, FileMode.OpenOrCreate, FileAccess.Write);
+      byte[] buffer = new byte[count1];
+      int count2;
+      while ((count2 = requestWithPostData.Read(buffer, 0, count1)) > 0)
+      {
+        fileStream.Write(buffer, 0, count2);
+        fileStream.Flush();
+      }
+      fileStream.Close();
+      requestWithPostData.Close();
+    }
+    this._logger.WriteInfo("download filename : {0}", (object) localFileName);
+    return true;
+  }
+
+  private Stream CreateHttpWebRequestWithPostData(string url, Dictionary<string, string> parameter)
+  {
+    parameter["IP"] = this.UrlEncode(this.GetIpAddress());
+    parameter["UserName"] = this.UrlEncode(Environment.UserName);
+    parameter["MachineName"] = this.UrlEncode(Environment.MachineName);
+    Stream requestWithPostData = (Stream) null;
+    using (CancellationTokenSource cancellationTokenSource = new CancellationTokenSource())
+    {
+      FormUrlEncodedContent content = new FormUrlEncodedContent((IEnumerable<KeyValuePair<string, string>>) parameter);
+      try
+      {
+        HttpResponseMessage result = DeployUpdateController.client.PostAsync(url, (HttpContent) content, cancellationTokenSource.Token).GetAwaiter().GetResult();
+        if (!result.IsSuccessStatusCode)
+          throw new Exception(result.ReasonPhrase);
+        requestWithPostData = result.Content.ReadAsStreamAsync().Result;
+      }
+      catch (TaskCanceledException ex)
+      {
+        throw ex;
+      }
+    }
+    return requestWithPostData;
+  }
+
+  private string GetPostData()
+  {
+    return $"{$"{$"{string.Empty}{this.UrlEncode("IP")}={this.UrlEncode(this.GetIpAddress())}&"}{this.UrlEncode("UserName")}={this.UrlEncode(Environment.UserName)}&"}{this.UrlEncode("MachineName")}={this.UrlEncode(Environment.MachineName)}&";
+  }
+  private string UrlEncode(string data) => Uri.EscapeDataString(data).Replace("%20", "+");
+
+  private string GetIpAddress()
+  {
+    string ipAddress = string.Empty;
+    try
+    {
+      foreach (IPAddress address in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
+      {
+        if (address.AddressFamily.ToString() == "InterNetwork")
+          ipAddress = !string.IsNullOrWhiteSpace(ipAddress) ? $"{ipAddress}, {address.ToString()}" : address.ToString();
+      }
+    }
+    catch (Exception ex)
+    {
+      this._logger.WriteInfo("GetIpAddress : {0} \r\n", (object) ex.Message);
+    }
+    return ipAddress;
+  }
+  private void DeleteEmptyDirectory(DirectoryInfo baseDir)
+  {
+    if (!baseDir.Exists)
+      return;
+    foreach (DirectoryInfo enumerateDirectory in baseDir.EnumerateDirectories())
+    {
+      try
+      {
+        if (enumerateDirectory.GetFiles("*", SearchOption.AllDirectories).Length == 0)
+        {
+          enumerateDirectory.Delete(true);
+          this._logger.WriteInfo("Deleted empty directory : {0}", (object) enumerateDirectory.FullName);
+        }
+      }
+      catch (Exception ex)
+      {
+        this._logger.WriteInfo("Failed delete empty directory : \"{0}\"", (object) enumerateDirectory.FullName);
+      }
+    }
+  }
+
+  /// <summary>어셈블리를 GAC에 등록한다.</summary>
+  /// <param name="assemblyName">
+  /// 확장자가 포함된 어셈블리 파일 명
+  /// ex)ThridPartyControl.dll
+  /// </param>
+  public void RegisterAssembly(string assemblyName)
+  {
+    if (string.IsNullOrWhiteSpace(assemblyName))
+    {
+      this._logger.WriteInfo("There is no assembly name specified.");
+    }
+    else
+    {
+      try
+      {
+        AssemblyCache.InstallAssembly(assemblyName, (InstallReference) null, AssemblyCommitFlags.Default);
+        this._logger.WriteInfo("Registerd Assembly : {0}", (object) assemblyName);
+      }
+      catch (Exception ex)
+      {
+        this._logger.WriteInfo("Failed Register Assembly : {0}\r\n{1}", (object) assemblyName, (object) ex.Message);
+      }
+    }
+  }
+
+  /// <summary>GAC에 등록된 어셈블리를 제거한다.</summary>
+  /// <param name="assemblyName">
+  /// 아키텍처를 포함한 어셈블리 FullName
+  /// ex) "ThirdPartyControl, Version=1.6.0.0, Culture=neutral, PublicKeyToken=1e3623280b4e82a6, processorArchitecture=MSIL"
+  /// </param>
+  /// <param name="processorArchitecture">processorArchitecture 입니다.</param>
+  public void UnregisterAssembly(string assemblyName, string processorArchitecture = "MSIL")
+  {
+    if (string.IsNullOrWhiteSpace(assemblyName))
+    {
+      this._logger.WriteInfo("There is no assembly name specified.");
+    }
+    else
+    {
+      try
+      {
+        string assemblyName1 = $"{assemblyName}, processorArchitecture={processorArchitecture}";
+        AssemblyCacheUninstallDisposition disp = AssemblyCacheUninstallDisposition.Uninstalled;
+        AssemblyCache.UninstallAssembly(assemblyName1, (InstallReference) null, out disp);
+        this._logger.WriteInfo("Unregisterd Assembly : {0}", (object) assemblyName1);
+      }
+      catch (Exception ex)
+      {
+        this._logger.WriteInfo("Failed Unregister Assembly : {0}\r\n{1}", (object) assemblyName, (object) ex.Message);
+      }
+    }
+  }
+
+  private void CopyToLocal(DeployFileInfo fileInfo)
+  {
+    string filePath1 = fileInfo.GetFilePath(this._localBaseDir);
+    string filePath2 = DeployUpdateUtils.GetFilePath("~/" + fileInfo.FileName, this._localBaseDir);
+    bool flag = fileInfo.InstallAction.Argument == "x64";
+    try
+    {
+      if (Environment.Is64BitProcess)
+      {
+        if (!flag)
+          return;
+        System.IO.File.Copy(filePath1, filePath2, true);
+      }
+      else if (!flag)
+        System.IO.File.Copy(filePath1, filePath2, true);
+    }
+    catch (Exception ex)
+    {
+    }
+  }
+
+  private void ShowMessage(string message, string titlePrefix = null)
+  {
+    if (this._eventSink == null)
+      return;
+    this._eventSink.ShowMessage(message, titlePrefix);
+  }
+  private void ShowMessage(
+    string message,
+    string titlePrefix,
+    double maxValue,
+    double currentValue)
+  {
+    if (this._eventSink == null)
+      return;
+    this._eventSink.ShowMessage(message, titlePrefix, maxValue, currentValue);
+  }
+
+  private bool ExistLauncher()
+  {
+    string normalizedProcessName = this.GetNormalizedProcessName();
+    string processName = Process.GetCurrentProcess().ProcessName;
+    Process[] processesByName = Process.GetProcessesByName(normalizedProcessName);
+    return !normalizedProcessName.Equals(processName) ? processesByName.Length != 0 : processesByName.Length > 1;
+  }
+
+  private string GetNormalizedProcessName()
+  {
+    if (string.IsNullOrEmpty(this._settings.LauncherName))
+      return Process.GetCurrentProcess().ProcessName;
+    string str = Path.Combine(this._localBaseDir, this._settings.LauncherName);
+    if (!System.IO.File.Exists(str))
+      return (string) null;
+    FileInfo fileInfo = new FileInfo(str);
+    return fileInfo.Name.Replace(fileInfo.Extension, "");
+  }
+
+  private bool IsNetworkAvailable
+  {
+    get
+    {
+      try
+      {
+        foreach (NetworkInterface networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+        {
+          if (networkInterface.OperationalStatus == OperationalStatus.Up && networkInterface.NetworkInterfaceType != NetworkInterfaceType.Tunnel && networkInterface.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+            return true;
+        }
+      }
+      catch (NetworkInformationException ex)
+      {
+      }
+      return false;
+    }
+  }
+}
