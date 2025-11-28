@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WorkspaceViewList>
+  <기본정보관리>
+    <View ModuleName="MegaRegionManager" ViewName="MainContentView" NodeName="MainContentView" Id="1163" />
+    <View ModuleName="MegaRegionManager" ViewName="MegaRegionManagerView" NodeName="MegaRegionManagerView" Id="1164" />
+    <View ModuleName="MegaRegionManager" ViewName="MidRegionManagerView" NodeName="MidRegionManagerView" Id="1165" />
+    <View ModuleName="MegaRegionManager" ViewName="PIFactorMasterView" NodeName="PIFactorMasterView" Id="1166" />
+    <View ModuleName="MegaRegionManager" ViewName="SDRuleMasterManager" NodeName="SDRuleMasterManager" Id="1205" />
+    <View ModuleName="MegaRegionManager" ViewName="SDRuleSP1Manager" NodeName="SDRuleSP1Manager" Id="1206" />
+    <View ModuleName="MegaRegionManager" ViewName="SDRuleSP2Manager" NodeName="SDRuleSP2Manager" Id="1207" />
+    <View ModuleName="MegaRegionManager" ViewName="SDRuleSP3Manager" NodeName="SDRuleSP3Manager" Id="1208" />
+    <View ModuleName="RegionMulStdDurManager" ViewName="RegionFactorExcel" NodeName="RegionFactorExcel" Id="1215" />
+    <View ModuleName="RegionMulStdDurManager" ViewName="RegionFactorFigShpExcel" NodeName="RegionFactorFigShpExcel" Id="1223" />
+    <View ModuleName="RegionMulStdDurManager" ViewName="RegionFactorDefine" NodeName="RegionFactorDefine" Id="1246" />
+  </기본정보관리>
+</WorkspaceViewList>
