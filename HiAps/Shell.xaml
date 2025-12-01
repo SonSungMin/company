@@ -5,6 +5,106 @@ public partial class Shell : UserControl, INotifyPropertyChanged
 {
 ... (생략) ...
 
+public static bool LoadViewList(string workspaceName, out List<ModuleViewId> moduleViews)
+{
+	moduleViews = new List<ModuleViewId>();
+
+	try
+	{
+		AmiWorkspaceHelper.Load(workspaceName, moduleViews);
+	}
+	catch (Exception)
+	{
+		return false;
+	}
+
+	return (moduleViews.Count > 0);
+}
+
+public static bool LoadDockLayout(AmiViewList workspace)
+{
+	if (workspace != null)
+	{
+		string tmpWorkspaceName = EnsureProperWorkspaceName(workspace);
+		string path;
+		string filename;
+		GetSafeWorkspaceLayoutFilename(tmpWorkspaceName, out path, out filename);
+
+		if (DockManager != null)
+		{
+			try
+			{
+				if (AmiFileUtility.IsExistFile(filename))
+				{
+					// restore layout
+					AmiFileUtility.ReleseLockedFile(filename);
+					DockManager.RestoreLayoutFromXml(filename);
+
+					return true;
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+	}
+
+	return false;
+}
+
+private void SaveLayout(string workspaceName)
+{
+    string path;
+    string filename;
+    GetSafeWorkspaceLayoutFilename(workspaceName, out path, out filename);
+
+    try
+    {
+        AmiFileUtility.ForceCreateDirectory(path);
+        AmiFileUtility.ForceDeleteFile(filename);
+
+        // Layout 그룹의 Tag에 ViewName을 기록하고
+        // Restore 시에 해동 ViewName을 가지는 그룹에 뷰를 붙임
+        SetLayoutViewList();
+                
+        dockManager.SaveLayoutToXml(filename);
+    }
+    catch (Exception ex)
+    {
+        string msg = string.Format("[{0}]Layout을 저장할 수 없습니다.", workspaceName);
+        logger.Write(msg);
+        logger.Write(ex.ToString());
+    }
+}
+
+private void SaveDockLayout(string workspaceName)
+{
+	string tmpWorkspaceName = EnsureWorkspaceName(workspaceName);
+
+	// layout
+	SaveLayout(tmpWorkspaceName);
+
+	// view 목록
+	SaveViewList(tmpWorkspaceName);
+}
+
+public void GetActiveModuleAndViewList(out List<ModuleViewId> moduleViews)
+{
+	moduleViews = new List<ModuleViewId>();
+
+	foreach (IPanelInfo view in regionManager.Regions[MefRegionDefinition.MainRegion].ActiveViews)
+	{
+		var moduleView = new ModuleViewId()
+		{
+			ModuleName = view.GetModuleName(),
+			ViewName = view.GetViewName(),
+			NodeName = view.GetViewName(),
+			Id = view.GetId()
+		};
+		moduleViews.Add(moduleView);
+	}
+}
+
 private void OpenWorkspace(string workspaceName, AmiViewList amiViewList = null)
 {
 	BeginWaitCursor();
