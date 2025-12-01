@@ -38,9 +38,31 @@ private void OpenWorkspace(string workspaceName, AmiViewList amiViewList = null)
 
 	if (viewList != null && viewList.Count > 0)
 	{
+		// 1. 기존 방식: Caption(NodeName)으로 찾기
 		string caption = viewList[0].NodeName;
 		BaseLayoutItem item = recv_GetLayoutitem(dockManager.LayoutRoot, caption);
-		SetActivePannel(item);
+
+		// 2. Fallback: Caption으로 못 찾았을 경우, Name으로 다시 찾기
+		if (item == null)
+		{
+			string viewName = viewList[0].ViewName;
+
+			if (!string.IsNullOrEmpty(viewName) && viewName.Contains(","))
+			{
+				string typeName = viewName.Split(',')[0]; // 콤마 앞의 전체 타입명 추출
+				string[] parts = typeName.Split('.');     // 점으로 분리
+				viewName = parts[parts.Length - 1];       // 마지막 부분이 클래스 이름
+			}
+
+			string name = string.Format("{0}:{1}", viewList[0].ModuleName, viewName);
+			item = recv_GetLayoutitemByName(dockManager.LayoutRoot, name);
+		}
+
+		// item을 찾았으면 활성화
+		if (item != null)
+		{
+			SetActivePannel(item);
+		}
 	}
 	else if (amiViewList != null && amiViewList.Count > 0)
 	{
@@ -54,6 +76,26 @@ private void OpenWorkspace(string workspaceName, AmiViewList amiViewList = null)
 	StartWorkspaceProfile(CurrentWorkspaceId, CurrentWorkspaceName);
 
 	EndWaitCursor();
+}
+
+private BaseLayoutItem recv_GetLayoutitemByName(DevExpress.Xpf.Docking.LayoutGroup group, string name)
+{
+	if (group == null) return null;
+
+	foreach (BaseLayoutItem child in group.Items)
+	{
+		if (child is DevExpress.Xpf.Docking.LayoutGroup)
+		{
+			// 그룹인 경우 재귀 호출
+			BaseLayoutItem item = recv_GetLayoutitemByName((DevExpress.Xpf.Docking.LayoutGroup)child, name);
+			if (item != null) return item;
+		}
+		else if (child.Name == name) // Name 속성 비교
+		{
+			return child;
+		}
+	}
+	return null;
 }
 
 private void RemoveFixedBar()
