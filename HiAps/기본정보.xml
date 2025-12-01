@@ -1,7 +1,7 @@
 <XtraSerializer version="1.0" application="DockLayoutManager">
   <property name="#LayoutVersion" isnull="true" />
   <property name="$DockLayoutManager" iskey="true" value="DockLayoutManager">
-    <property name="Items" iskey="true" value="14">
+    <property name="Items" iskey="true" value="13">
       <property name="Item1" isnull="true" iskey="true">
         <property name="SerializableDockSituation" iskey="true" value="0" />
         <property name="TypeName">LayoutGroup</property>
@@ -25,12 +25,12 @@
         <property name="SerializableDockSituation" iskey="true" value="0" />
         <property name="ClosePageButtonShowMode">InActiveTabPageHeader</property>
         <property name="DestroyOnClosingChildren">false</property>
-        <property name="SerializableSelectedTabPageIndex">10</property>
+        <property name="SerializableSelectedTabPageIndex">0</property>
         <property name="MDIStyle">Default</property>
         <property name="Name">mdiContainer</property>
       </property>
       <property name="Item4" isnull="true" iskey="true">
-        <property name="IsActive">false</property>
+        <property name="IsActive">true</property>
         <property name="ParentCollectionName" isnull="true" />
         <property name="ParentName">mdiContainer</property>
         <property name="TypeName">DocumentPanel</property>
@@ -38,8 +38,8 @@
         <property name="SerializableFloatingBounds">0,0,0,0</property>
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingOffset">0,0</property>
-        <property name="Caption" type="System.String">모델선 M/S</property>
-        <property name="Name">MegaRegionManager:MainContentView</property>
+        <property name="Caption" type="System.String">구획 생성 규칙 관리</property>
+        <property name="Name">MegaRegionManager:MainContentView_3</property>
       </property>
       <property name="Item5" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -50,8 +50,8 @@
         <property name="SerializableFloatingOffset">0,0</property>
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
-        <property name="Caption" type="System.String">중일정 호선 관리</property>
-        <property name="Name">MegaRegionManager:MegaRegionManagerView</property>
+        <property name="Caption" type="System.String">대구획 관리</property>
+        <property name="Name">MegaRegionManager:MegaRegionManagerView_3</property>
       </property>
       <property name="Item6" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -62,8 +62,8 @@
         <property name="SerializableFloatingOffset">0,0</property>
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
-        <property name="Caption" type="System.String">중일정 시리즈 버전 관리</property>
-        <property name="Name">MegaRegionManager:MidRegionManagerView</property>
+        <property name="Caption" type="System.String">중구획 관리</property>
+        <property name="Name">MegaRegionManager:MidRegionManagerView_3</property>
       </property>
       <property name="Item7" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -74,8 +74,8 @@
         <property name="SerializableFloatingOffset">0,0</property>
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
-        <property name="Caption" type="System.String">시나리오 데이터 편집</property>
-        <property name="Name">MegaRegionManager:PIFactorMasterView</property>
+        <property name="Caption" type="System.String">PI펙터 관리</property>
+        <property name="Name">MegaRegionManager:PIFactorMasterView_3</property>
       </property>
       <property name="Item8" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -86,8 +86,8 @@
         <property name="SerializableFloatingOffset">0,0</property>
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
-        <property name="Caption" type="System.String">외주 맵핑</property>
-        <property name="Name">MegaRegionManager:SDRuleMasterManager</property>
+        <property name="Caption" type="System.String">공기(기본품목 고정공기)</property>
+        <property name="Name">MegaRegionManager:SDRuleMasterManager_3</property>
       </property>
       <property name="Item9" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -98,8 +98,8 @@
         <property name="SerializableFloatingOffset">0,0</property>
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
-        <property name="Caption" type="System.String">실적선 원단위 호선정보</property>
-        <property name="Name">MegaRegionManager:SDRuleSP1Manager</property>
+        <property name="Caption" type="System.String">공기S1(특수품목 고정공기)</property>
+        <property name="Name">MegaRegionManager:SDRuleSP1Manager_3</property>
       </property>
       <property name="Item10" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -111,7 +111,7 @@
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
         <property name="Caption" type="System.String">공기S2(표준공기)</property>
-        <property name="Name">MegaRegionManager:SDRuleSP2Manager</property>
+        <property name="Name">MegaRegionManager:SDRuleSP2Manager_3</property>
       </property>
       <property name="Item11" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -123,7 +123,7 @@
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
         <property name="Caption" type="System.String">공기S3(추가공기)</property>
-        <property name="Name">MegaRegionManager:SDRuleSP3Manager</property>
+        <property name="Name">MegaRegionManager:SDRuleSP3Manager_3</property>
       </property>
       <property name="Item12" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -135,7 +135,7 @@
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
         <property name="Caption" type="System.String">구획 환산팩터관리(Excel)</property>
-        <property name="Name">RegionMulStdDurManager:RegionFactorExcel</property>
+        <property name="Name">RegionMulStdDurManager:RegionFactorExcel_3</property>
       </property>
       <property name="Item13" isnull="true" iskey="true">
         <property name="IsActive">false</property>
@@ -147,19 +147,7 @@
         <property name="SerializableIsMaximized">false</property>
         <property name="SerializableFloatingBounds">0,0,0,0</property>
         <property name="Caption" type="System.String">구획 환산팩터관리_FIG_SHP(Excel)</property>
-        <property name="Name">RegionMulStdDurManager:RegionFactorFigShpExcel</property>
-      </property>
-      <property name="Item14" isnull="true" iskey="true">
-        <property name="IsActive">true</property>
-        <property name="ParentCollectionName" isnull="true" />
-        <property name="ParentName">mdiContainer</property>
-        <property name="TypeName">DocumentPanel</property>
-        <property name="SerializableDockSituation" iskey="true" value="0" />
-        <property name="SerializableFloatingBounds">0,0,0,0</property>
-        <property name="SerializableIsMaximized">false</property>
-        <property name="SerializableFloatingOffset">0,0</property>
-        <property name="Caption" type="System.String">씨엠텍 조립정반배치</property>
-        <property name="Name">RegionMulStdDurManager:RegionFactorDefine</property>
+        <property name="Name">RegionMulStdDurManager:RegionFactorFigShpExcel_3</property>
       </property>
     </property>
     <property name="ManualClosedPanelsBarVisibility">false</property>
@@ -167,3 +155,12 @@
     <property name="MDIMergeStyle">Never</property>
   </property>
 </XtraSerializer>
+
+
+
+
+
+      
+
+
+        
