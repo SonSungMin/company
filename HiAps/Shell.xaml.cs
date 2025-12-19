@@ -1,3 +1,55 @@
+using System;
+using System.IO;
+using System.Xml;
+using System.Collections.Generic; 
+using System.Linq;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input; 
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using DevExpress.Xpf.Core;
+using DevExpress.Xpf.Bars;
+using DevExpress.Xpf.Layout.Core;
+using DevExpress.Xpf.Docking;
+using DevExpress.Xpf.NavBar;
+using System.ComponentModel.Composition;
+using Microsoft.Practices.Prism.Regions;
+using Microsoft.Practices.Prism.Modularity;
+using Microsoft.Practices.Composite.Events;
+using Amisys.Framework.Infrastructure.PrismSupps;
+using System.ComponentModel.Composition.Hosting;
+using System.ComponentModel;
+using Amisys.Framework.Infrastructure.Utility;
+using Amisys.Framework.Infrastructure.DataModels;
+using Amisys.Framework.Infrastructure.Interfaces;
+using Amisys.Framework.Infrastructure.RegionAdapters;
+using Amisys.Framework.Infrastructure;
+using Amisys.Framework.Presentation.Views;
+using Microsoft.Practices.ServiceLocation;
+using System.Diagnostics;
+using DevExpress.Xpf.Ribbon;
+using System.Globalization;
+using Microsoft.Practices.Composite.Presentation.Events;
+using DevExpress.Xpf.Docking.Base;
+using Amisys.Infrastructure.HHIInfrastructure.Interfaces;
+using System.Data;
+using Amisys.Infrastructure.HHIInfrastructure.Defintions;
+using DevExpress.Xpf.LayoutControl;
+using System.Collections.Specialized;
+using System.Reflection;
+using Amisys.Framework.Presentation.AmiMainShell.Utility;
+using Amisys.Framework.Infrastructure.Definitions;
+using Amisys.Framework.Presentation.DataAccess;
+using Amisys.Framework.Presentation.Utility;
+using DevExpress.Xpf.Core.Serialization;
+
+namespace Amisys.Framework.Presentation.AmiMainShell.Views
+{
     /// <summary>
     /// Shell.xaml에 대한 상호 작용 논리
     /// </summary>
@@ -44,6 +96,7 @@
         }
 
         private AmiMenuTreeViewItem currentWorkspace;
+
         private const string DefaultWorkspaceName = "MainShell";
         private string currentWorkspaceName = DefaultWorkspaceName;
         public string CurrentWorkspaceName
@@ -66,7 +119,9 @@
         }
         private int _CurrentWorkspaceId = -1;
 
+
         private UpdateFileHelper helper;
+
         public UpdateFileHelper Helper
         {
             get
@@ -74,10 +129,10 @@
                 if (helper == null)
                     helper = new UpdateFileHelper();
 
-
                 return helper;
             }
         }
+
 
         public WorkspaceUsingProfileHelper WorkspaceUsingProfile
         {
@@ -90,9 +145,12 @@
                 }
                 return _WorkspaceUsingProfile;
             }
-            //set { _WorkspaceUsingProfile = value; }
         }
 		private WorkspaceUsingProfileHelper _WorkspaceUsingProfile;
+        
+        /// <summary>
+        /// ModuleName.ViewName
+        /// </summary>
         public string CurrentViewName
         {
             get
@@ -106,8 +164,8 @@
             }
         }
         private string _CurrentViewName;
-        private string _ThemeName = "VS2010";
 
+        private string _ThemeName = "VS2010";
         public string ThemeName
         {
             get
@@ -120,6 +178,7 @@
                 NotifyPropertyChanged("ThemeName"); 
             }
         }
+
 
         public AmiViewList CurrentWorkspace
         {
@@ -144,6 +203,7 @@
             }
         }
 
+
         protected IMessageService messageService
         {
             get
@@ -151,9 +211,12 @@
                 return ServiceLocator.Current.GetInstance<IMessageService>();
             }
         }
+
         #region properties
 
+
         private bool _IsBusy;
+
         public bool IsBusy
         {
             get
@@ -167,7 +230,9 @@
             }
         }
 
+
         private string _BusyContent;
+
         public string BusyContent
         {
             get
@@ -197,12 +262,10 @@
 
         #endregion
 
-        //, IHHIMasterDataService masterDataService
         [ImportingConstructor]
         public Shell(IRegionManager regionManager, IModuleManager moduleManager
-            , IModuleCatalog moduleCatalog, IEventAggregator eventAggregator
-            , ILayoutService layoutService
-            )
+                   , IModuleCatalog moduleCatalog, IEventAggregator eventAggregator
+                   , ILayoutService layoutService)
         {
             this.regionManager = regionManager;
             this.moduleManager = moduleManager;
@@ -217,16 +280,15 @@
             dockManager.UnMerge += dockManager_UnMerge;
             dockManager.ActiveMDIItem = mdiContainer;
             dockManager.DockItemClosed += OnDockItemClosed;
-
             dockManager.AutoHideGroups.CollectionChanged += OnHideGroupCollectionChanged;
-            
+
+            // Layout 복원 시 Content 재할당을 위한 이벤트 핸들러 등록
+            DXSerializer.AddEndDeserializingHandler(dockManager, OnEndDeserializing);
 
             this.eventAggregator.GetEvent<DynamicEvent>().Subscribe(SubLoadModule);
-            // SubLoadModule에서 처리
             this.eventAggregator.GetEvent<DynamicEvent>().Subscribe(SubSaveLayout);
             this.eventAggregator.GetEvent<DynamicEvent>().Subscribe(SubOpenWorkspace, ThreadOption.UIThread);
             this.eventAggregator.GetEvent<DynamicEvent>().Subscribe(SubCloseWorkspace, ThreadOption.UIThread);
-            // 데이터 저장 관련 통신은 sync 로 처리 필요
             this.eventAggregator.GetEvent<DynamicEvent>().Subscribe(SubResHavingUnsavedData, ThreadOption.PublisherThread);
             this.eventAggregator.GetEvent<DynamicEvent>().Subscribe(SubLoadWithRegionModule);
 
@@ -235,16 +297,155 @@
             parentBarManager.DataContext = this.layoutService;
 
             InitUIOption();
-            
-            ShowMenu();             //  -> visible 
+
+            ShowMenu();
             layoutService.DevTheme = ThemeName;
             PubThemeChange(ThemeName);
 
             DevExpress.Xpf.Core.DXGridDataController.DisableThreadingProblemsDetection = true;
         }
 
-        #region UI 옵션 초기화
+        private void OnEndDeserializing(object sender, EndDeserializingEventArgs e)
+        {
+            if (!(sender is DockLayoutManager))
+                return;
 
+            // 현재 Region에 있는 모든 View 가져오기
+            var region = regionManager.Regions[MefRegionDefinition.MainRegion];
+            if (region == null)
+                return;
+
+            var views = region.Views.Cast<object>().ToList();
+
+            // 먼저 모든 Panel에서 Content를 제거하여 View-Panel 연결 끊기
+            var allItems = dockManager.GetItems();
+            var panelsToRestore = new List<DocumentPanel>();
+
+            foreach (var item in allItems)
+            {
+                if (item is DocumentPanel panel)
+                {
+                    if (panel.Content != null)
+                    {
+                        // 기존 Content 제거
+                        var content = panel.Content;
+                        panel.Content = null;
+
+                        // IPanelInfo의 부모 참조도 제거
+                        if (content is IPanelInfo panelInfo)
+                        {
+                            panelInfo.SetParentWnd(null);
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(panel.Name))
+                    {
+                        panelsToRestore.Add(panel);
+                    }
+                }
+            }
+
+            // 이제 Content를 다시 할당
+            foreach (var panel in panelsToRestore)
+            {
+                // Panel의 Name을 기반으로 매칭되는 View 찾기
+                var matchingView = FindViewForPanel(panel, views);
+                if (matchingView != null)
+                {
+                    // View가 이미 다른 Panel에 할당되어 있는지 확인
+                    RemoveViewFromParent(matchingView);
+
+                    panel.Content = matchingView;
+
+                    // IPanelInfo 인터페이스가 있다면 부모 윈도우 설정
+                    if (matchingView is IPanelInfo panelInfo)
+                    {
+                        panelInfo.SetParentWnd(panel);
+                    }
+
+                    // 사용된 View는 목록에서 제거하여 중복 할당 방지
+                    views.Remove(matchingView);
+                }
+            }
+        }
+
+        // View를 부모 요소에서 제거
+        private void RemoveViewFromParent(object view)
+        {
+            if (view is FrameworkElement element)
+            {
+                // LogicalTreeHelper를 사용하여 부모 찾기
+                var parent = LogicalTreeHelper.GetParent(element);
+
+                if (parent is ContentControl contentControl)
+                {
+                    contentControl.Content = null;
+                }
+                else if (parent is Panel panel)
+                {
+                    panel.Children.Remove(element);
+                }
+                else if (parent is Decorator decorator)
+                {
+                    decorator.Child = null;
+                }
+            }
+        }
+
+        // Panel에 매칭되는 View 찾기
+        private object FindViewForPanel(DocumentPanel panel, List<object> views)
+        {
+            string panelName = panel.Name;
+
+            foreach (var view in views)
+            {
+                if (view is IPanelInfo panelInfo)
+                {
+                    // Panel 이름과 매칭
+                    string viewPanelName = panelInfo.GetPanelName();
+
+                    // 정확히 일치하는 경우
+                    if (panelName == viewPanelName)
+                        return view;
+
+                    // "_숫자" suffix가 있는 경우 제거하고 비교
+                    string panelNameWithoutSuffix = RemoveNumericSuffix(panelName);
+                    if (panelNameWithoutSuffix == viewPanelName)
+                        return view;
+
+                    // "ModuleName:ViewName" 형식으로 비교
+                    string moduleViewName = $"{panelInfo.GetModuleName()}:{viewPanelName}";
+                    if (panelName == moduleViewName || panelNameWithoutSuffix == moduleViewName)
+                        return view;
+                }
+            }
+
+            return null;
+        }
+
+
+        // 숫자 suffix 제거
+        private string RemoveNumericSuffix(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return name;
+
+            int underscoreIndex = name.LastIndexOf('_');
+            if (underscoreIndex > 0)
+            {
+                string suffix = name.Substring(underscoreIndex + 1);
+                int numericSuffix;
+                if (int.TryParse(suffix, out numericSuffix))
+                {
+                    return name.Substring(0, underscoreIndex);
+                }
+            }
+
+            return name;
+        }
+
+
+        #region UI 옵션 초기화
 
         private void InitUIOption()
         {
@@ -254,7 +455,6 @@
         }
 
         #endregion
-
 
         private void OnHideGroupCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
@@ -267,7 +467,7 @@
         }
 
         private void OnDockItemClosed(object sender, DockItemClosedEventArgs e)
-        {
+        {            
             foreach (BaseLayoutItem item in e.AffectedItems)
             {
                 if (item is LayoutPanel)
@@ -299,8 +499,9 @@
         private void HideMenu()
         {
         }
+
         private void ShowMenu()
-        {            
+        {
         }
 
         private bool recv_HaveGroup(DevExpress.Xpf.Docking.LayoutGroup parent, DevExpress.Xpf.Docking.LayoutGroup search)
@@ -314,8 +515,8 @@
                     haveGroup = recv_HaveGroup((DevExpress.Xpf.Docking.LayoutGroup)ui, search);
                     if (haveGroup == true) return true;
                 }
-
             }
+
             return false;
         }
 
@@ -328,6 +529,7 @@
             }
             return 2;
         }
+
 
         List<Bar> _NewBars = new List<Bar>();
         List<object> _FixedBarParents = new List<object>();
@@ -367,11 +569,11 @@
 
         void dockManager_Merge(object sender, BarMergeEventArgs e)
         {
-
             RemoveChildBar();
             
             string barName = "ChildBar";
             int cnt = 1;
+
             foreach (var bar in e.ChildBarManager.Bars)
             {
                 if (bar.Visible == false)
@@ -402,8 +604,7 @@
                 newBar.Merge(bar);
                 cnt++;
                 _NewBars.Add(newBar);
-            }
-          
+            }          
         }
 
         void dockManager_UnMerge(object sender, BarMergeEventArgs e)
@@ -453,6 +654,7 @@
                 LoadModule(row);
             }
         }
+
         private void SubLoadWithRegionModule(DynamicEventParam param)
         {
             if (param.IsContains("PubLoadWithRegionModule", "AmiMainShell", "ModuleName", "RegionName"))
@@ -474,6 +676,7 @@
                 }
             }
         }
+
         private void SubHideCloseButton(DynamicEventParam param)
         {
             if (param.IsContains("PubHideCloseButton", ""))
@@ -486,6 +689,7 @@
                 if (item != null) item.ShowCloseButton = false;
             }
         }
+
         private void AddCatalog(string moduleName)
         {
             if (catalogService != null)
@@ -501,6 +705,7 @@
                 }
             }
         }
+
         private void LoadModule(string moduleName)
         {
             if (this.moduleManager == null) return;
@@ -525,6 +730,7 @@
                 int id = row.Field<int>("NodeId");
                 string moduleName = row.Field<string>("AssemblyName");
                 string viewName = row.Field<string>("ViewName");
+
                 AddCatalog(moduleName);
 
                 ModuleInfo isLoadedMod = IsContainsModule(moduleName);
@@ -559,7 +765,6 @@
 
                 PubLoadModuleWithRegion(moduleName, regionName);
             }
-
         }
 
         private void LoadModuleWithViewName(string moduleName, string viewName, int id = 0)
@@ -586,9 +791,7 @@
                 // set Current View Id
                 amiDataService.CurrentId = id;
 
-                //PubLoadModule(moduleName, actualViewName, id);
-                PubLoadModule(moduleName, viewName, id);
-
+                PubLoadModule(moduleName, actualViewName, id);
 
                 // clear current view Id
                 amiDataService.CurrentId = -1;
@@ -613,23 +816,20 @@
 
         public void PubLoadModule(string moduleName)
         {
-            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule"
-                    , moduleName, true);
+            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule", moduleName, true);
             param.Publish(this.eventAggregator);
         }
 
         public void PubLoadModuleWithRegion(string moduleName, string regionName)
         {
-            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule"
-                    , moduleName, true);
+            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule", moduleName, true);
             param.AddParams("RegionName", regionName);
             param.Publish(this.eventAggregator);
         }
 
         public void PubLoadModuleWithViewNameAndRegion(string moduleName, string viewName, string regionName, int id)
         {
-            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule"
-                    , moduleName, true);
+            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule", moduleName, true);
             param.AddParams("ViewName", viewName);
             param.AddParams("RegionName", regionName);
             param.AddParams("Id", id);
@@ -638,33 +838,32 @@
 
         public void PubLoadModule(string moduleName, string viewName, int id)
         {
-            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule"
-                    , moduleName, true);
+            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadModule", moduleName, true);
             param.AddParams("ViewName", viewName);
             param.AddParams("Id", id);
             param.Publish(this.eventAggregator);
         }
-
+        
         public void PubCloseModule(string moduleName)
         {
-            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubCloseModule"
-                    , moduleName, true);
+            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubCloseModule", moduleName, true);
             param.Publish(this.eventAggregator);
         }
 
         public void PubCloseModule(string moduleName, string viewName, int id)
         {
-            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubCloseModule"
-                    , moduleName, true);
+            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubCloseModule", moduleName, true);
             param.AddParams("ViewName", viewName);
             param.AddParams("Id", id);
             param.Publish(this.eventAggregator);
         }
 
+
         private void CloseModuleWithViewName(string moduleName, string viewName, int id = 0)
         {
             PubCloseModule(moduleName, viewName, id);
         }
+
 
         private ModuleInfo IsContainsModule(string moduleName)
         {
@@ -704,7 +903,7 @@
             param.AddParams("CurrentWorkspaceName", CurrentWorkspaceName);
             param.Publish(this.eventAggregator);
         }
-        
+        //상호 참조를 해결하기 위해서 Shell 이 로드된 후 필요한 모듈을 로드한다.
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             string id = this.logonInfoService.GetUserGroupId();
@@ -716,6 +915,7 @@
             LoadModule("AmiMenu");
         }
 
+        // 프로그램 종료시 WindowClosing 이벤트
         private void AmiMainShell_Closing(object sender, CancelEventArgs e)
         {
             // 데이터 저장 체크
@@ -730,8 +930,7 @@
             {
                 DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubApplicationClosing");
                 param.Publish(this.eventAggregator);
-            }
-            
+            }            
         }
 
         public void PubShowGridTotalSummary(bool show)
@@ -740,6 +939,7 @@
             param.AddParams("ShowTotalSummary", show);
             param.Publish(this.eventAggregator);
         }
+
         private void bThemeChange_ItemClick(object sender, ItemClickEventArgs e)
         {
             if(sender is BarButtonItem)
@@ -751,7 +951,6 @@
                     ThemeName = themeName;
                     PubThemeChange(themeName);
                 }
-
             }
         }
 
@@ -761,10 +960,10 @@
             param.AddParams("ThemeName", themeName);
             param.Publish(this.eventAggregator);
         }
+        
         public void PubLoadMenu()
         {
-            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadMenu"
-                    , "AmiMenu", true);
+            DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubLoadMenu", "AmiMenu", true);
             param.Publish(this.eventAggregator);
         }
 
@@ -772,15 +971,16 @@
         {
             PubLoadMenu();
         }
-        #region save/refresh Layout
 
-        
+        #region save/refresh Layout
+                
         private void SubOpenWorkspace(DynamicEventParam param)
         {
             if (param.IsContains("PubOpenWorkspace", "AmiMainShell", "ViewList"))
             {
                 AmiViewList viewList = param.GetParams("ViewList");
                 int workspaceId = viewList.GetWorkspaceNodeID();
+
                 if (CurrentWorkspace == null || workspaceId != CurrentWorkspace.GetWorkspaceNodeID())
                 {
                     this.CurrentWorkspace = viewList;
@@ -811,7 +1011,7 @@
             List<ModuleViewId> moduleViewList;
             GetActiveModuleAndViewList(out moduleViewList);
 
-// close 뷰
+            // close 뷰
             foreach (var view in moduleViewList)
             {
                 CloseModuleWithViewName(view.ModuleName, view.ViewName, view.Id);
@@ -838,20 +1038,30 @@
             if (menu == null) return;
             int workspaceId = menu.GetWorkspaceId();
             if (currentWorkspace == null || workspaceId != this.CurrentWorkspaceId)
-			{
+            {
+
                 this.CurrentWorkspace = menu.ViewList;
                 this.CurrentWorkspaceName = menu.GetWorkSpaceName();
                 CloseWorkspace();
 
                 OpenWorkspace(this.CurrentWorkspaceName, menu.ViewList);
             }
-
         }
 
         private void OpenWorkspace(string workspaceName, AmiViewList amiViewList = null)
         {
             BeginWaitCursor();
             RemoveFixedBar();
+
+            // 기존 Region의 모든 View를 임시로 저장하고 제거
+            var region = regionManager.Regions[MefRegionDefinition.MainRegion];
+            var existingViews = region.Views.Cast<object>().ToList();
+
+            // Region에서 모든 View 제거 (Panel-View 연결 끊기)
+            foreach (var view in existingViews)
+            {
+                region.Remove(view);
+            }
 
             // read module list
             List<ModuleViewId> viewList;
@@ -866,44 +1076,48 @@
             else
             {
                 // AmiViewList로 로드
-                foreach (var view in amiViewList)
+                if (amiViewList != null)
                 {
-                    LoadModule(view);
+                    foreach (var view in amiViewList)
+                    {
+                        LoadModule(view);
+                    }
                 }
             }
 
-            // restore dock layout
-            if (LoadDockLayout(workspaceName) == false)
+            // 약간의 지연 후 Layout 복원 (View들이 Region에 추가될 시간을 줌)
+            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
-            }
-            dockManager.MDIMergeStyle = _CurrentMergeStyle;
-
-            if (viewList != null && viewList.Count > 0)
-            {
-                BaseLayoutItem item = FindLayoutItemForView(viewList[0]);
-
-                // item을 찾았으면 활성화
-                if (item != null)
+                // restore dock layout
+                if (LoadDockLayout(workspaceName) == false)
                 {
+                    // Layout 파일이 없는 경우
+                }
+                dockManager.MDIMergeStyle = _CurrentMergeStyle;
+
+                // 첫 번째 아이템 활성화
+                if (viewList != null && viewList.Count > 0)
+                {
+                    BaseLayoutItem item = FindLayoutItemForView(viewList[0]);
+                    if (item != null)
+                    {
+                        SetActivePannel(item);
+                    }
+                }
+                else if (amiViewList != null && amiViewList.Count > 0)
+                {
+                    DataRow row = amiViewList[0];
+                    string caption = row.Field<string>("NodeName");
+                    BaseLayoutItem item = recv_GetLayoutitem(dockManager.LayoutRoot, caption);
                     SetActivePannel(item);
                 }
-                else
-                {
-                    logger.Write($"Warning: Could not find layout item for {viewList[0].ModuleName}:{viewList[0].ViewName}");
-                }
-            }
-            else if (amiViewList != null && amiViewList.Count > 0)
-            {
-                DataRow row = amiViewList[0];
-                string caption = row.Field<string>("NodeName");
-                BaseLayoutItem item = recv_GetLayoutitem(dockManager.LayoutRoot, caption);
-                SetActivePannel(item);
-            }
 
-            // start workspace 
-            StartWorkspaceProfile(CurrentWorkspaceId, CurrentWorkspaceName);
+                // start workspace 
+                StartWorkspaceProfile(CurrentWorkspaceId, CurrentWorkspaceName);
 
-            EndWaitCursor();
+                EndWaitCursor();
+
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         private BaseLayoutItem FindLayoutItemForView(ModuleViewId viewInfo)
@@ -919,6 +1133,7 @@
 
             // 2. ViewName 처리
             string viewName = viewInfo.ViewName;
+
             // AssemblyQualifiedName인 경우 클래스명만 추출
             if (!string.IsNullOrEmpty(viewName) && viewName.Contains(","))
             {
@@ -942,6 +1157,7 @@
 
             return null;
         }
+
         private BaseLayoutItem recv_GetLayoutitemByNameExact(DevExpress.Xpf.Docking.LayoutGroup group, string name)
         {
             if (group == null) return null;
@@ -989,9 +1205,11 @@
                     {
                         string suffix = child.Name.Substring(underscoreIndex + 1);
                         int numericSuffix;
+
                         if (int.TryParse(suffix, out numericSuffix))
                         {
                             childNameWithoutSuffix = child.Name.Substring(0, underscoreIndex);
+
 
                             if (childNameWithoutSuffix == name)
                             {
@@ -1047,6 +1265,7 @@
 
             return true;
         }
+
         private void SubSaveLayout(DynamicEventParam param)
         {
             if (param.IsContains("PubSaveLayout", "AmiMainShell"))
@@ -1055,7 +1274,6 @@
                 SaveDockLayout(currentWorkspaceName);
             }
         }
-
 
         private void SaveDockLayout(string workspaceName)
         {
@@ -1075,6 +1293,7 @@
             else
                 return workspaceName;
         }
+
         private void SaveViewList(string workspaceName)
         {
             List<ModuleViewId> viewList;
@@ -1094,10 +1313,30 @@
 
         private void SaveLayout(string workspaceName)
         {
-            return;
-		}
+            string path;
+            string filename;
+            GetSafeWorkspaceLayoutFilename(workspaceName, out path, out filename);
 
-		        private void SetLayoutViewList()
+            try
+            {
+                AmiFileUtility.ForceCreateDirectory(path);
+                AmiFileUtility.ForceDeleteFile(filename);
+
+                // Layout 그룹의 Tag에 ViewName을 기록하고
+                // Restore 시에 해동 ViewName을 가지는 그룹에 뷰를 붙임
+                SetLayoutViewList();
+                
+                dockManager.SaveLayoutToXml(filename);
+            }
+            catch (Exception ex)
+            {
+                string msg = string.Format("[{0}]Layout을 저장할 수 없습니다.", workspaceName);
+                logger.Write(msg);
+                logger.Write(ex.ToString());
+            }
+        }
+
+        private void SetLayoutViewList()
         {
             foreach (var item in dockManager.LayoutRoot.Items)
             {
@@ -1118,6 +1357,7 @@
 
 
         #region Workspace/Module/View 정보
+
         /// <summary>
         /// 현재 Workspace에 활성화된 Module:View 목록
         /// </summary>
@@ -1128,6 +1368,7 @@
             foreach (IPanelInfo view in regionManager.Regions[MefRegionDefinition.MainRegion].ActiveViews)
             {
                 var moduleView = new ModuleViewId()
+
                 {
                     ModuleName = view.GetModuleName(),
                     ViewName = view.GetViewName(),
@@ -1174,9 +1415,7 @@
 
             return cnt;
         }
-
         #endregion
-
 
         #region INotifyPropertyChanged Members
         public event PropertyChangedEventHandler PropertyChanged;
@@ -1222,13 +1461,11 @@
             if (optionWindow != null)
             {
                 optionWindow.ShowDialog();                    
-            }          
-            
+            }
         }
 
         private void bHelp_ItemClick(object sender, ItemClickEventArgs e)
         {
-
         }
 
         private void bExit_ItemClick(object sender, ItemClickEventArgs e)
@@ -1255,7 +1492,7 @@
             PubChangeToolbarGlyphSize(GlyphSize.Small);
         }
 
-		private void TabbedGroup_SelectedItemChanged(object sender, DevExpress.Xpf.Docking.Base.SelectedItemChangedEventArgs e)
+        private void TabbedGroup_SelectedItemChanged(object sender, SelectedItemChangedEventArgs e)
         {
             if (e.Item == null)
                 return;
@@ -1268,6 +1505,7 @@
                 param.Publish(this.eventAggregator);
             }
             else
+
             {
                 DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubSelectedTabChanged");
                 param.AddParams("ThemeName", ThemeName);
@@ -1280,6 +1518,7 @@
         {
             PubShowHideContent();
         }
+
         private void bHideContent_ItemClick(object sender, ItemClickEventArgs e)
         {
             PubShowHideContent(false);
@@ -1288,6 +1527,7 @@
         private void PubShowHideContent(bool show=true)
         {
             DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubShowHideContent");
+
             if(show)
                 param.AddParams("BarItemDisplayMode", BarItemDisplayMode.ContentAndGlyph);
             else
@@ -1324,11 +1564,13 @@
         {
             // save할 데이터가 있는지 체크
             PubReqHavingUnsavedData();
+
             if (hasUnsavedData)
             {
                 // 저장할 데이터가 있다면, 사용자 확인
                 bool save = ConfirmDataSave();
                 // 저장
+
                 if (save)
                     PubSaveData();
 
@@ -1337,12 +1579,12 @@
             }
         }
 
-
         private void SubResHavingUnsavedData(DynamicEventParam param)
         {
             if (param.IsContains("PubResHavingUnsavedData", this.moduleName, "Result"))
             {
                 var result = param.GetParams("Result");
+
                 if (result)
                     hasUnsavedData = true;
             }
@@ -1366,11 +1608,11 @@
         }
 
         #endregion
-        
+
         private void dockManager_LayoutItemRestored(object sender, LayoutItemRestoredEventArgs e)
         {
-           
         }
+
         private void bShowMenu_ItemClick(object sender, ItemClickEventArgs e)
         {
             ShowMenu();
@@ -1388,8 +1630,6 @@
                 CurrentViewName = ea.Item.Name;
             }
         }
-
-
 
         #region 모듈(어셈블리) 버전 및 폴더 정보
 
@@ -1427,6 +1667,8 @@
             }
             return path;
         }
+
+
         #endregion
 
         #region utility
@@ -1441,6 +1683,7 @@
         private void rect_GetDisposableContent(List<IDisposable> list, DevExpress.Xpf.Docking.LayoutGroup group)
         {
             if (group == null) return;
+
             DocumentPanel doc;
             foreach (BaseLayoutItem child in group.Items)
             {
@@ -1462,10 +1705,10 @@
                 dockManager.Activate(pannel);
             }
         }
-
         private BaseLayoutItem recv_GetLayoutitem(DevExpress.Xpf.Docking.LayoutGroup group, string caption)
         {
             if (group == null) return null;
+
             foreach (BaseLayoutItem child in group.Items)
             {
                 if (child is DevExpress.Xpf.Docking.LayoutGroup)
@@ -1478,6 +1721,13 @@
             return null;
         }
 
+        /// <summary>
+        /// 지정한 모듈/뷰이름의 활성화된 뷰를 찾아서 리턴
+        /// 동일 이름이 여러개일 경우 첫번째 뷰 리턴
+        /// </summary>
+        /// <param name="moduleName"></param>
+        /// <param name="viewName"></param>
+        /// <returns></returns>
         public object GetActiveModuleAndView(string moduleName, string viewName)
         {
             return ModuleHelper.GetActiveModuleAndView(moduleName, viewName);
@@ -1504,6 +1754,8 @@
         }
 
         #endregion
+
+
         public void SaveLayout()
         {
             LayoutHelper.SaveDockLayoutAndViewList(CurrentWorkspace);
@@ -1518,37 +1770,5 @@
         {
             LayoutHelper.DeleteDockLayoutAndViewList(CurrentWorkspace);
         }
-
-        private void DeleteDockLayout(AmiViewList workspace)
-        {
-            if (workspace != null)
-            {
-                // layout 삭제
-                // 뷰 리스트 삭제
-                LayoutHelper.DeleteDockLayoutAndViewList(workspace);
-            }
-        }
-
     }
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
