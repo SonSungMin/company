@@ -1,0 +1,85 @@
+<mui:APSSModernWindow x:Class="NewMainShell.MainWindow"
+                      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:mui="http://firstfloorsoftware.com/ModernUI"
+                      xmlns:conv="clr-namespace:Amisys.Infrastructure.HHIInfrastructure.Convertrs;assembly=HHIInfrastructure"
+                      xmlns:shell="http://schemas.microsoft.com/winfx/2006/xaml/presentation/shell"
+                       Title="HIAPS" IsTitleVisible="True"
+                      Icon="HiAPS.ico"
+                      WindowStartupLocation="Manual"
+                      SnapsToDevicePixels="True" 
+                      UseLayoutRounding="True" 
+                      WindowState="Maximized"
+                      Width="1024" Height="768"
+                       TextOptions.TextFormattingMode="Ideal"
+                      ContentSource="/Views/MainFrame.xaml" Navigated="APSSModernWindow_Navigated" KeyDown="APSSModernWindow_KeyDown">
+    <mui:APSSModernWindow.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </mui:APSSModernWindow.Resources>
+
+    <mui:APSSModernWindow.LeftToolbarMenus>
+        <mui:ModernButton IconData="F1M65.8755,283.4639L103.3865,283.5069L75.9305,248.8369L156.1195,248.8369L156.1195,215.6699L75.9315,215.6699L103.3865,180.9999L65.7725,181.1479L14.6665,232.2549z"
+                          ToolTip="뒤로" FontSize="{Binding HeaderFontSize}" shell:WindowChrome.IsHitTestVisibleInChrome="True" Click="PrevButton_Click" IsEnabled="{Binding IsPrevious}" />
+
+        <mui:ModernButton IconData="F1M121.9619,455.7197L121.9619,446.5197L78.9619,446.5197L78.9619,455.7197L70.8929,455.7197L70.8929,433.7417C70.8929,429.0357,76.2649,425.2197,82.8929,425.2197L118.0309,425.2197C124.6589,425.2197,130.0309,429.0357,130.0309,433.7417L130.0309,455.7197z M100.4619,325.7197L28.8709,405.7197L53.0309,405.7197L53.0309,458.7197L63.4029,458.7197L70.8939,458.7197L130.0299,458.7197L140.1709,458.7197L147.5309,458.7197L147.5309,405.7197L172.0529,405.7197z"
+                          ToolTip="Home" FontSize="{Binding HeaderFontSize}" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="5, 0, 0, 0" Click="HomeButton_Click" />
+
+        <mui:ModernButton IconData="F1M104.9106,23.043L67.3996,23L94.8556,57.67L14.6666,57.67L14.6666,90.837L94.8546,90.837L67.3996,125.507L105.0136,125.359L156.1196,74.252z"
+                          ToolTip="앞으로" FontSize="{Binding HeaderFontSize}" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="5, 0, 0, 0" Click="NextButton_Click" IsEnabled="{Binding IsNext}" />
+
+        <TextBlock Text="바로가기" FontSize="{Binding HeaderFontSize}" Margin="10, 0, 0, 0" Style="{StaticResource Small}" VerticalAlignment="Center"/>
+        <TextBox Name="CodeTextBox" Margin="5, 0, 0, 0" VerticalAlignment="Center" Width="80" PreviewKeyDown="CodeTextBox_PreviewKeyDown" />
+
+-->
+        <mui:ModernButton IconData="F1M205.3008,46.894C200.9758,46.894,197.4688,50.402,197.4688,54.727C197.4688,56.698,198.2008,58.494,199.4048,59.87C195.8718,62.443,191.5288,63.967,186.8248,63.967C175.0068,63.967,165.4268,54.386,165.4268,42.568C165.4268,30.75,175.0068,21.17,186.8248,21.17C192.5568,21.17,197.7568,23.429,201.5978,27.098L194.1298,31.539L213.1318,42.188L212.8548,20.406L207.5338,23.569C202.3968,17.969,195.0248,14.454,186.8248,14.454C171.2968,14.454,158.7088,27.041,158.7088,42.568C158.7088,58.097,171.2968,70.685,186.8248,70.685C194.5998,70.685,201.6338,67.524,206.7228,62.424C210.3688,61.753,213.1318,58.566,213.1318,54.727C213.1318,50.402,209.6248,46.894,205.3008,46.894"
+                          ToolTip="Menu Reload" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="5, 0, 0, 0" Click="MenuReloadButton_Click"  
+                          Content="메뉴 새로고침" FontSize="{Binding HeaderFontSize}" Visibility="{Binding VisibilityOption}"/>
+
+        <mui:ModernButton IconData="F1M286.6035,58.373L286.6035,44.386L245.4405,44.386L245.4405,51.379L241.4445,51.379L241.4445,32.486L245.4405,32.486L245.4405,38.791L259.8275,38.791L259.8275,25.784L245.4405,25.784L245.4405,32.089L241.4445,32.089L241.4445,21.606L274.6135,21.606L274.6135,14.454L232.6515,14.454L232.6515,70.685L274.6135,70.685L274.6135,63.168L241.4445,63.168L241.4445,51.777L245.4405,51.777L245.4405,58.373z"
+                          ToolTip="Menu Editor" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="5, 0, 0, 0" Click="MenuEditButton_Click"  
+                          Content="메뉴 편집"  FontSize="{Binding HeaderFontSize}" Visibility="{Binding VisibilityOption}"/>
+
+        <mui:ModernButton Content="도움말" FontSize="{Binding HeaderFontSize}"
+                          ToolTip="도움말 보기" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="5, 0, 0, 0" Click="Help_Click" >
+            <mui:ModernButton.IconData >
+                <CombinedGeometry GeometryCombineMode="Union">
+                    <CombinedGeometry.Geometry1>
+                        <PathGeometry>M19.744,64.102L19.744,53.606C19.744,36.362 23.846,23.367 32.052,14.62 40.256,5.873 51.44,1.5 65.602,1.5 70.766,1.5 75.806,2.125 80.722,3.374 85.636,4.624 89.26,6.041 91.592,7.623L83.096,24.616C81.846,23.701 79.285,22.348 75.411,20.556 71.537,18.766 67.808,17.869 64.228,17.869 54.813,17.869 48.191,20.368 44.36,25.367 42.193,28.033 40.84,32.489 40.299,38.736 39.756,44.984 39.487,53.44 39.487,64.102L71.225,64.102 69.351,80.721 39.487,80.721 39.487,199.053 19.744,199.053 19.744,80.721 1.5,80.721 1.5,64.102z</PathGeometry>
+                    </CombinedGeometry.Geometry1>
+                    <CombinedGeometry.Geometry2>
+                        <PathGeometry>M138.376,180.184L138.376,23.367 101.515,42.735 101.64,22.367 142.125,1.5 159.618,1.5 159.618,180.184 192.481,180.184 192.481,197.303 102.89,197.303 102.89,180.184z</PathGeometry>
+                    </CombinedGeometry.Geometry2>
+                </CombinedGeometry>
+
+            </mui:ModernButton.IconData>
+        </mui:ModernButton>
+
+
+    </mui:APSSModernWindow.LeftToolbarMenus>
+
+    <mui:APSSModernWindow.RightToolbarMenus>
+        <Rectangle Width="2" Height="13" Fill="#FF808080" Margin="0,0,5,0" VerticalAlignment="Center"/>
+
+        <mui:ModernButton IconData="F1M104.9106,23.043L67.3996,23L94.8556,57.67L14.6666,57.67L14.6666,90.837L94.8546,90.837L67.3996,125.507L105.0136,125.359L156.1196,74.252z"
+                          ToolTip="뷰추가" FontSize="{Binding HeaderFontSize}" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="5, 0, 0, 0" Click="AddViewButton_Click" Content="뷰추가  " />
+
+
+        <Rectangle Width="2" Height="13" Fill="#FF808080" Margin="0,0,5,0" VerticalAlignment="Center"/>
+
+        <TextBlock Text="Layout" FontSize="{Binding HeaderFontSize}" VerticalAlignment="Center" Style="{StaticResource Small}" Margin="0, 0, 5, 0" />
+
+        <mui:ModernButton IconData="F1M588.997,64.768L544.92,64.768L544.92,46.733L588.997,46.733z M544.92,19.23L547.635,19.23L547.635,36.66L554.629,36.66L554.629,19.23L583.201,19.23L583.201,40.695L544.92,40.695z M585.361,16.432L541.588,16.432C540.962,16.432,540.453,16.94,540.453,17.566L540.453,68.047C540.453,68.675,540.962,69.182,541.588,69.182L592.068,69.182C592.694,69.182,593.203,68.675,593.203,68.047L593.203,24.274z"
+                          ToolTip="레이아웃 저장" FontSize="{Binding HeaderFontSize}" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="0, 0, 5, 0" Click="SaveLayoutButton_Click"  />
+
+        <mui:ModernButton IconData="F1M519.8311,64.7681L474.9001,64.7681L483.3121,39.3571L528.6511,39.3571z M523.3241,36.3931L523.3241,26.4571L494.5511,26.4571L494.5511,19.1141L470.0381,19.1141L470.0381,26.4571L470.0381,61.8381L470.0381,69.1821L523.3241,69.1821L534.1811,36.3931z"
+                          ToolTip="레이아웃 읽기" FontSize="{Binding HeaderFontSize}" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="0, 0, 5, 0" Click="ReadLayoutButton_Click"  />
+
+        <mui:ModernButton IconData="F1M653.9482,26.8716L646.2422,19.1666L630.7402,34.6686L615.2392,19.1666L607.5342,26.8716L623.0362,42.3736L607.5362,57.8736L615.2402,65.5796L630.7402,50.0786L646.2422,65.5796L653.9472,57.8736L638.4472,42.3736z"
+                          ToolTip="레이아웃 삭제" FontSize="{Binding HeaderFontSize}" shell:WindowChrome.IsHitTestVisibleInChrome="True" Margin="0, 0, 5, 0" Click="DeleteLayoutButton_Click"  />
+
+        <Rectangle Width="2" Height="13" Fill="#FF808080" Margin="0,0,5,0" VerticalAlignment="Center"/>
+        <Button Content="Menu" FontSize="{Binding HeaderFontSize}" Click="MenuButton_Click" Margin="0,0,5,0" Style="{StaticResource SystemButtonLink}" ToolTip="메뉴보기" Visibility="{Binding IsShowMenu, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+        <Rectangle Width="2" Height="13" Fill="#FF808080" VerticalAlignment="Center"/>
+    </mui:APSSModernWindow.RightToolbarMenus>
+</mui:APSSModernWindow>
