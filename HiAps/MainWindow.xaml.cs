@@ -191,8 +191,10 @@ namespace NewMainShell
         private void OnRunWorkspace(object sender, EventArgs e)
         {
             AmiMenuTreeViewItem item = null;
-            if (sender is FavoriteItem) item = ((FavoriteItem)sender).MenuItem;
-            else if (sender is AmiMenuTreeViewItem) item = (AmiMenuTreeViewItem)sender;
+            if (sender is FavoriteItem) 
+                item = ((FavoriteItem)sender).MenuItem;
+            else if (sender is AmiMenuTreeViewItem) 
+                item = (AmiMenuTreeViewItem)sender;
 
             RunWorkspace(item);
 
@@ -506,6 +508,7 @@ namespace NewMainShell
         }
 
         private void HelpDeskButton_Click(object sender, RoutedEventArgs e)
+
         {
             AmiMenuTreeViewItem menu = _Frame.GetWorkspace(WorkspaceCode.HelpDeskCode);
             if (menu != null) OnRunWorkspace(menu, null);
@@ -566,7 +569,6 @@ namespace NewMainShell
 
         private List<DataRow> GetSeletedViews(List<BindableViewInfo> list)
         {
-
             List<DataRow> ret = new List<DataRow>();
             foreach (BindableViewInfo info in list)
             {
