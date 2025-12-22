@@ -423,7 +423,6 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
             return null;
         }
 
-
         // 숫자 suffix 제거
         private string RemoveNumericSuffix(string name)
         {
@@ -1053,14 +1052,21 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
             BeginWaitCursor();
             RemoveFixedBar();
 
-            // 기존 Region의 모든 View를 임시로 저장하고 제거
-            var region = regionManager.Regions[MefRegionDefinition.MainRegion];
-            var existingViews = region.Views.Cast<object>().ToList();
+            // 1. 작업 시작 전 Region이 유실되어 있다면 복구
+            EnsureMainRegion();
 
-            // Region에서 모든 View 제거 (Panel-View 연결 끊기)
-            foreach (var view in existingViews)
+            // 2. Region이 존재하는지 안전하게 확인 후 뷰 제거 로직 수행
+            if (regionManager.Regions.ContainsRegionWithName(MefRegionDefinition.MainRegion))
             {
-                region.Remove(view);
+                // 기존 Region의 모든 View를 임시로 저장하고 제거
+                var region = regionManager.Regions[MefRegionDefinition.MainRegion];
+                var existingViews = region.Views.Cast<object>().ToList();
+
+                // Region에서 모든 View 제거 (Panel-View 연결 끊기)
+                foreach (var view in existingViews)
+                {
+                    region.Remove(view);
+                }
             }
 
             // read module list
@@ -1210,7 +1216,6 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
                         {
                             childNameWithoutSuffix = child.Name.Substring(0, underscoreIndex);
 
-
                             if (childNameWithoutSuffix == name)
                             {
                                 return child;
@@ -1237,7 +1242,7 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
 
             return (moduleViews.Count > 0);
         }
-        
+
         private bool LoadDockLayout(string workspaceName)
         {
             string tmpWorkspaceName = EnsureWorkspaceName(workspaceName);
@@ -1252,6 +1257,9 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
                     // restore layout
                     AmiFileUtility.ReleseLockedFile(filename);
                     dockManager.RestoreLayoutFromXml(filename);
+
+                    // [수정] Layout 복원 후 끊어진 Region을 다시 연결
+                    EnsureMainRegion();
                 }
                 else
                 {
@@ -1264,6 +1272,24 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
             }
 
             return true;
+        }
+
+        // MainRegion이 유실되었을 경우 mdiContainer에 다시 연결하는 메소드
+        private void EnsureMainRegion()
+        {
+            // Region이 이미 정상적으로 존재하는지 확인
+            if (regionManager.Regions.ContainsRegionWithName(MefRegionDefinition.MainRegion))
+                return;
+
+            // 도킹 매니저에서 mdiContainer(DocumentGroup)를 찾음
+            var mdiGroup = dockManager.GetItem("mdiContainer");
+
+            if (mdiGroup != null)
+            {
+                // RegionName과 RegionManager를 다시 설정하여 Region 등록
+                RegionManager.SetRegionName(mdiGroup, MefRegionDefinition.MainRegion);
+                RegionManager.SetRegionManager(mdiGroup, regionManager);
+            }
         }
 
         private void SubSaveLayout(DynamicEventParam param)
@@ -1365,10 +1391,15 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
         {
             moduleViews = new List<ModuleViewId>();
 
+            // Region 존재 여부 확인 (KeyNotFoundException 방지)
+            if (regionManager.Regions.ContainsRegionWithName(MefRegionDefinition.MainRegion) == false)
+            {
+                return;
+            }
+
             foreach (IPanelInfo view in regionManager.Regions[MefRegionDefinition.MainRegion].ActiveViews)
             {
                 var moduleView = new ModuleViewId()
-
                 {
                     ModuleName = view.GetModuleName(),
                     ViewName = view.GetViewName(),
@@ -1505,7 +1536,6 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
                 param.Publish(this.eventAggregator);
             }
             else
-
             {
                 DynamicEventParam param = new DynamicEventParam("AmiMainShell", "PubSelectedTabChanged");
                 param.AddParams("ThemeName", ThemeName);
@@ -1570,7 +1600,6 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
                 // 저장할 데이터가 있다면, 사용자 확인
                 bool save = ConfirmDataSave();
                 // 저장
-
                 if (save)
                     PubSaveData();
 
