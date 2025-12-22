@@ -65,6 +65,21 @@ namespace Amisys.Framework.Infrastructure.RegionAdapters
         /// </summary>
         private void OnFloatGroupsChanged(IRegion region, object sender, NotifyCollectionChangedEventArgs e)
         {
+            // 탭을 떼어내어 Floating 윈도우가 생성될 때 기본 크기 설정
+            if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null)
+            {
+                foreach (FloatGroup floatGroup in e.NewItems)
+                {
+                    floatGroup.FloatSize = new Size(1000, 700);
+
+                    // 기본 사이즈 설정
+                    if (floatGroup.FloatSize.Width < 200 || floatGroup.FloatSize.Height < 200)
+                    {
+                        floatGroup.FloatSize = new Size(1000, 700);
+                    }
+                }
+            }
+
             // FloatGroup이 제거될 때 (패널이 다시 도킹될 때)
             if (e.Action == NotifyCollectionChangedAction.Remove && e.OldItems != null)
             {
