@@ -1002,22 +1002,37 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
         }
 
         public void CloseWorkspace()
-        { 
+        {
             // 데이터 저장 체크
-            EnsureDataSave(); // 도성민 확인
+            EnsureDataSave();
 
-            // 뷰리스트
+            // 현재 활성화된 뷰 리스트 가져오기 및 닫기 이벤트 전송
             List<ModuleViewId> moduleViewList;
             GetActiveModuleAndViewList(out moduleViewList);
 
-            // close 뷰
             foreach (var view in moduleViewList)
             {
                 CloseModuleWithViewName(view.ModuleName, view.ViewName, view.Id);
             }
 
-            // end current workspace using
+            // Region에서 뷰를 명시적으로 제거 (탭 닫기 및 Dispose 유도)
+            if (regionManager.Regions.ContainsRegionWithName(MefRegionDefinition.MainRegion))
+            {
+                var region = regionManager.Regions[MefRegionDefinition.MainRegion];
+                // 컬렉션 변경 오류 방지를 위해 ToList로 복사 후 열거
+                var views = region.Views.Cast<object>().ToList();
+                foreach (var view in views)
+                {
+                    region.Remove(view);
+                }
+            }
+
             EndWorkspaceProfile();
+
+            // 메모리 강제 회수 (OOM 방지)
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
 
         private void StartWorkspaceProfile(int id, string name)
@@ -1038,9 +1053,10 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
             int workspaceId = menu.GetWorkspaceId();
             if (currentWorkspace == null || workspaceId != this.CurrentWorkspaceId)
             {
-
                 this.CurrentWorkspace = menu.ViewList;
                 this.CurrentWorkspaceName = menu.GetWorkSpaceName();
+
+                // 기존 워크스페이스 닫기 및 메모리 정리
                 CloseWorkspace();
 
                 OpenWorkspace(this.CurrentWorkspaceName, menu.ViewList);
@@ -1056,18 +1072,22 @@ namespace Amisys.Framework.Presentation.AmiMainShell.Views
             EnsureMainRegion();
 
             // 2. Region이 존재하는지 안전하게 확인 후 뷰 제거 로직 수행
+            // (CloseWorkspace에서 이미 수행했으나, 안전장치로 한 번 더 확인)
             if (regionManager.Regions.ContainsRegionWithName(MefRegionDefinition.MainRegion))
             {
-                // 기존 Region의 모든 View를 임시로 저장하고 제거
                 var region = regionManager.Regions[MefRegionDefinition.MainRegion];
                 var existingViews = region.Views.Cast<object>().ToList();
 
-                // Region에서 모든 View 제거 (Panel-View 연결 끊기)
                 foreach (var view in existingViews)
                 {
                     region.Remove(view);
                 }
             }
+
+            // 메모리 정리 확인 (새 모듈 로드 전 확보)
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
 
             // read module list
             List<ModuleViewId> viewList;
