@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI CBT (V9 - Pro)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div id="start-screen" class="box">
+        <h1>📝 AI CBT</h1>
+        
+        <textarea id="data-input" placeholder="문제 텍스트를 붙여넣거나 파일을 불러오세요.&#13;&#10;(## 섹션명, 복수 정답 지원)"></textarea>
+        
+        <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">
+            <div>
+                <input type="file" id="file-input" accept=".txt" style="display:none">
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('file-input').click()">📂 텍스트 파일 불러오기</button>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="showExamHistory()">📊 나의 시험 기록 보기</button>
+        </div>
+
+        <div id="file-analysis" class="hidden">
+            <strong>📊 파일 분석 결과</strong>
+            <div style="font-size:0.85rem; color:#666; margin-bottom:5px;">총 <span id="total-analysis-count">0</span>문제</div>
+            <ul id="section-list"></ul>
+        </div>
+
+        <div class="settings-grid">
+            <div><label>⏱️ 제한 시간 (분)</label><input type="number" id="timer-input" value="60" min="1"></div>
+            <div><label>📝 출제 문항 수</label><input type="number" id="q-count-input" value="60" min="1"></div>
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label style="display:flex; align-items:center; cursor:pointer;">
+                <input type="checkbox" id="shuffle-options-check" checked style="width:auto; margin-right:10px;">
+                선택지 순서 랜덤 섞기 (암기 방지)
+            </label>
+        </div>
+
+        <button class="btn" style="width:100%; font-size:1.1rem;" onclick="startQuiz()">시험 시작하기 🚀</button>
+        
+        <div style="text-align:right; margin-top:10px;">
+             <a href="#" onclick="clearAllData()" style="font-size:0.8rem; color:#999; text-decoration:underline;">모든 데이터 초기화</a>
+        </div>
+    </div>
+
+    <div id="history-screen" class="box hidden">
+        <h2>📊 나의 시험 기록</h2>
+        <div class="history-list" id="exam-log-list">
+            </div>
+        <div style="margin-top:20px; text-align:center;">
+            <button class="btn btn-outline" onclick="closeExamHistory()">닫기</button>
+        </div>
+    </div>
+
+    <div id="quiz-screen" class="box hidden">
+        <div class="quiz-header">
+            <div class="timer-box">
+                <span id="timer-display">60:00</span>
+                <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.7rem; margin-left:5px;" onclick="togglePause()" id="btn-pause">일시정지</button>
+            </div>
+            <div>
+                <span style="font-weight:bold; color:var(--primary)">Score: <span id="current-score">0</span></span>
+                <span style="color:#999; margin-left:10px; font-size:0.9rem;" id="q-progress">1/N</span>
+            </div>
+        </div>
+
+        <div id="q-container">
+            <div class="stats-bar">
+                <span id="stat-result">이전 기록: 없음</span>
+                <span id="stat-count">누적 풀이: 0회</span>
+            </div>
+
+            <div id="section-badge" class="section-badge hidden">섹션명</div>
+            <div class="q-text" id="q-text">문제...</div>
+            
+            <div id="options-area"></div>
+            
+            <div id="check-btn-area" class="check-btn-area hidden">
+                <button class="btn btn-sm" onclick="submitMultiAnswer()">정답 확인</button>
+            </div>
+
+            <div class="explanation" id="expl-area">
+                <strong>💡 해설</strong><br><span id="expl-text"></span>
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top:30px;">
+            <button class="btn btn-outline" onclick="prevQ()">이전</button>
+            <button class="btn" onclick="nextQ()" id="btn-next">다음 문제</button>
+            <button class="btn btn-danger" onclick="finishQuiz()">제출하기</button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="box hidden">
+        <h2 style="text-align:center;">시험 결과</h2>
+        <div style="text-align:center; margin-bottom:20px;">
+            <div id="pass-fail-badge" class="result-badge pass">합격</div>
+            <div style="font-size:3rem; color:#333; font-weight:bold;"><span id="final-score">0</span>점</div>
+            <p>총 <span id="total-q-count">0</span>문제 중 <span id="correct-count">0</span>개 정답</p>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
+            <button class="btn btn-warning" id="btn-retry-wrong" onclick="retryWrong()">❌ 오답 다시 풀기</button>
+            <button class="btn btn-outline" onclick="location.reload()">🏠 처음으로</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
