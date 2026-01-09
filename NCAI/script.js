@@ -1,0 +1,459 @@
+// --- Global Variables ---
+let allQuestions = [];
+let quizList = [];
+let currentIdx = 0;
+let score = 0;
+let userHistory = {}; // 이번 세션의 풀이 기록
+let timerInterval = null;
+let timeRemaining = 0;
+let isPaused = false;
+
+// 로컬 스토리지 키
+const STORAGE_KEY_STATS = 'quiz_q_stats_v2'; // 문제별 통계
+const STORAGE_KEY_EXAMS = 'quiz_exam_log_v2'; // 시험 결과 목록
+
+// --- Helper Functions ---
+// 간단한 문자열 해시 생성 (문제 ID용)
+function generateHash(str) {
+    let hash = 0, i, chr;
+    if (str.length === 0) return hash;
+    for (i = 0; i < str.length; i++) {
+        chr = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return "q_" + Math.abs(hash);
+}
+
+function shuffleArray(array) {
+    let shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+
+function loadStorage(key) {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : (key === STORAGE_KEY_EXAMS ? [] : {});
+}
+
+function saveStorage(key, data) {
+    localStorage.setItem(key, JSON.stringify(data));
+}
+
+// --- File & Parse ---
+document.getElementById('file-input').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('data-input').value = e.target.result;
+        const tempQs = parseQuestions(e.target.result);
+        analyzeAndDisplayFile(tempQs);
+    };
+    reader.readAsText(file, 'UTF-8');
+});
+
+function parseQuestions(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
+    const parsed = [];
+    let currentQ = null;
+    let currentSection = "일반";
+
+    lines.forEach(line => {
+        if (line.startsWith('##')) {
+            currentSection = line.replace(/^##\s*/, '').trim();
+            return;
+        }
+        const qMatch = line.match(/^(\*\*)?(\d+)\.(.*)/);
+        if (qMatch) {
+            if (currentQ) parsed.push(currentQ);
+            let qContent = line.replace(/^(\*\*)?\d+\./, '').trim().replace(/\*\*$/, '');
+            // ID를 텍스트 해시 기반으로 생성하여 파일이 수정되어도 문제 내용이 같으면 이력 유지
+            currentQ = {
+                id: generateHash(qContent), 
+                q: qContent, 
+                o: [], 
+                aIndices: [], 
+                e: '', 
+                section: currentSection
+            };
+        } else if (currentQ) {
+            if (line.match(/^[①②③④⑤1-5]/)) {
+                currentQ.o.push(line);
+            } else if (line.match(/^(\*\*)?정답[:\s]/)) {
+                let raw = line.replace(/^(\*\*)?정답[:\s]*/, '').replace(/\*\*/g, '').trim();
+                currentQ.aIndices = getIndicesFromStr(raw);
+            } else if (line.startsWith('해설:')) {
+                currentQ.e = line.replace('해설:', '').trim();
+            }
+        }
+    });
+    if (currentQ) parsed.push(currentQ);
+    return parsed;
+}
+
+function getIndicesFromStr(str) {
+    const map = {'①':0, '②':1, '③':2, '④':3, '⑤':4, '1':0, '2':1, '3':2, '4':3, '5':4};
+    const matches = str.match(/[①②③④⑤1-5]/g) || [];
+    const indices = [...new Set(matches.map(m => map[m]).filter(i => i !== undefined))];
+    return indices.sort((a,b)=>a-b);
+}
+
+function analyzeAndDisplayFile(questions) {
+    if (questions.length === 0) return alert("문제를 찾을 수 없습니다.");
+    
+    const sectionStats = {};
+    questions.forEach(q => {
+        if (!sectionStats[q.section]) sectionStats[q.section] = 0;
+        sectionStats[q.section]++;
+    });
+
+    document.getElementById('file-analysis').classList.remove('hidden');
+    document.getElementById('total-analysis-count').innerText = questions.length;
+    const ul = document.getElementById('section-list');
+    ul.innerHTML = '';
+    Object.keys(sectionStats).forEach(sec => {
+        const li = document.createElement('li');
+        li.innerText = `${sec}: ${sectionStats[sec]}문제`;
+        ul.appendChild(li);
+    });
+
+    document.getElementById('timer-input').value = 60;
+    document.getElementById('q-count-input').value = Math.min(60, questions.length);
+    alert(`로드 완료! ${questions.length}문제.`);
+}
+
+// --- Quiz Logic ---
+function generateQuizList(questions, targetCount) {
+    // 섹션별 균등 추출 로직
+    const sectionMap = new Map();
+    questions.forEach(q => {
+        if (!sectionMap.has(q.section)) sectionMap.set(q.section, []);
+        sectionMap.get(q.section).push(q);
+    });
+    
+    let result = [];
+    const distinctSections = Array.from(sectionMap.keys());
+    if (distinctSections.length === 0) return questions.slice(0, targetCount);
+
+    const baseCount = Math.floor(targetCount / distinctSections.length);
+    let remainder = targetCount % distinctSections.length;
+
+    distinctSections.forEach(sec => {
+        let count = baseCount + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+        const pool = sectionMap.get(sec);
+        const picked = pool.sort(() => Math.random() - 0.5).slice(0, Math.min(count, pool.length));
+        result = result.concat(picked);
+    });
+    
+    return result.sort(() => Math.random() - 0.5); // 전체적으로 한번 더 섞기
+}
+
+function startQuiz() {
+    const rawText = document.getElementById('data-input').value;
+    if (!rawText.trim()) return alert("데이터가 없습니다.");
+    allQuestions = parseQuestions(rawText);
+    
+    const inputCount = parseInt(document.getElementById('q-count-input').value);
+    const targetCount = (inputCount > 0) ? inputCount : allQuestions.length;
+    
+    quizList = generateQuizList(allQuestions, targetCount);
+    
+    userHistory = {};
+    score = 0;
+    currentIdx = 0;
+    
+    const mins = parseInt(document.getElementById('timer-input').value) || 60;
+    timeRemaining = mins * 60;
+    startTimer();
+
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('result-screen').classList.add('hidden');
+    document.getElementById('quiz-screen').classList.remove('hidden');
+    
+    loadQuestion(0);
+}
+
+function loadQuestion(idx) {
+    currentIdx = idx;
+    const qData = quizList[idx];
+    
+    // UI 초기화
+    document.getElementById('q-progress').innerText = `${idx + 1} / ${quizList.length}`;
+    document.getElementById('current-score').innerText = score;
+    
+    const badge = document.getElementById('section-badge');
+    if (qData.section !== "일반") { badge.innerText = qData.section; badge.classList.remove('hidden'); }
+    else badge.classList.add('hidden');
+
+    // [기능 2, 3] 통계 표시
+    const statsStore = loadStorage(STORAGE_KEY_STATS);
+    const qStat = statsStore[qData.id] || { attempts: 0, lastResult: null };
+    const statResultEl = document.getElementById('stat-result');
+    const statCountEl = document.getElementById('stat-count');
+    
+    statCountEl.innerText = `누적 풀이: ${qStat.attempts}회`;
+    if(qStat.lastResult === 'correct') statResultEl.innerHTML = `이전 기록: <span class="badge-correct">정답 O</span>`;
+    else if(qStat.lastResult === 'wrong') statResultEl.innerHTML = `이전 기록: <span class="badge-wrong">오답 X</span>`;
+    else statResultEl.innerText = `이전 기록: 없음`;
+
+    document.getElementById('q-text').innerText = `Q. ${qData.q}`;
+    document.getElementById('expl-area').classList.remove('show');
+    
+    const optsArea = document.getElementById('options-area');
+    optsArea.innerHTML = '';
+    
+    const isMulti = qData.aIndices.length > 1;
+    document.getElementById('check-btn-area').classList.toggle('hidden', !isMulti);
+
+    // [기능 1] 선택지 랜덤 섞기 처리
+    // 원본 인덱스를 기억하는 객체 배열 생성
+    // 예: [{text: "① ...", orgIdx: 0}, {text: "② ...", orgIdx: 1}]
+    let optionsWithIdx = qData.o.map((text, i) => ({ text, orgIdx: i }));
+    const shouldShuffle = document.getElementById('shuffle-options-check').checked;
+    
+    if (shouldShuffle && !userHistory[qData.id]) {
+        // 아직 안 푼 문제일 때만 섞기 (이미 푼 문제는 상태 유지를 위해 순서 고정해야 하지만, 여기선 단순화를 위해 매번 섞되, 기록 객체에 매핑 정보를 저장하는게 복잡하므로 
+        // "이미 풀었으면" 섞지 않거나 저장된 순서를 써야 함. 여기서는 "이미 푼 경우" 그냥 원본 순서대로 보여주거나 다시 섞습니다.)
+        // -> UX상 풀고나서 보기가 바뀌면 헷갈리므로, userHistory에 'shuffledOrder'를 저장하는게 좋음.
+        if (!qData.shuffledOrder) {
+            qData.shuffledOrder = shuffleArray(optionsWithIdx);
+        }
+        optionsWithIdx = qData.shuffledOrder;
+    } else {
+        // 섞기 옵션 껐거나, 재검토 시 등
+            if (!qData.shuffledOrder && shouldShuffle) qData.shuffledOrder = shuffleArray(optionsWithIdx);
+            if (shouldShuffle) optionsWithIdx = qData.shuffledOrder;
+    }
+
+    optionsWithIdx.forEach((optObj, visualIdx) => {
+        const btn = document.createElement('div');
+        btn.className = 'option-item';
+        btn.innerText = optObj.text;
+        // dataset에 원본 인덱스 저장 (정답 체크용)
+        btn.dataset.orgIdx = optObj.orgIdx;
+        btn.dataset.visualIdx = visualIdx;
+        
+        if (userHistory[qData.id]) {
+            // 이미 푼 문제 처리
+            btn.style.pointerEvents = 'none';
+            const record = userHistory[qData.id];
+            
+            // record.selected는 visualIdx가 아니라 orgIdx 기준이어야 안전함.
+            const isSelected = record.selectedOrgIndices.includes(optObj.orgIdx);
+            const isAnswer = qData.aIndices.includes(optObj.orgIdx);
+
+            if (isSelected) {
+                if (isAnswer) btn.classList.add('correct');
+                else btn.classList.add('wrong');
+            }
+            if (isAnswer && !isSelected) btn.classList.add('missed');
+        } else {
+            btn.onclick = () => handleOptionClick(btn, isMulti);
+        }
+        optsArea.appendChild(btn);
+    });
+
+    if (userHistory[qData.id]) {
+        document.getElementById('expl-text').innerText = qData.e || "해설 없음";
+        document.getElementById('expl-area').classList.add('show');
+        if (isMulti) document.getElementById('check-btn-area').classList.add('hidden');
+    }
+}
+
+function handleOptionClick(btn, isMulti) {
+    if (isMulti) {
+        btn.classList.toggle('selected');
+    } else {
+        // 단일 선택 -> 즉시 제출
+        const orgIdx = parseInt(btn.dataset.orgIdx);
+        finishQuestion([orgIdx]);
+    }
+}
+
+function submitMultiAnswer() {
+    const selectedBtns = document.querySelectorAll('.option-item.selected');
+    if (selectedBtns.length === 0) return alert("하나 이상 선택해주세요.");
+
+    const selectedOrgIndices = Array.from(selectedBtns).map(b => parseInt(b.dataset.orgIdx)).sort((a,b)=>a-b);
+    finishQuestion(selectedOrgIndices);
+}
+
+function finishQuestion(selectedOrgIndices) {
+    const qData = quizList[currentIdx];
+    
+    // 정답 비교
+    // 배열 내용 비교 (정렬된 상태여야 함)
+    const answerSorted = [...qData.aIndices].sort((a,b)=>a-b);
+    const userSorted = [...selectedOrgIndices].sort((a,b)=>a-b);
+    const isCorrect = JSON.stringify(answerSorted) === JSON.stringify(userSorted);
+
+    // 이번 세션 기록
+    userHistory[qData.id] = { selectedOrgIndices: selectedOrgIndices, isCorrect: isCorrect };
+    if (isCorrect) score++;
+
+    // [기능 2, 3] 영구 스토리지 업데이트
+    const statsStore = loadStorage(STORAGE_KEY_STATS);
+    if (!statsStore[qData.id]) statsStore[qData.id] = { attempts: 0, lastResult: null };
+    
+    statsStore[qData.id].attempts += 1;
+    statsStore[qData.id].lastResult = isCorrect ? 'correct' : 'wrong';
+    saveStorage(STORAGE_KEY_STATS, statsStore);
+
+    // UI 갱신 (현재 화면)
+    // 통계 즉시 반영
+    document.getElementById('stat-count').innerText = `누적 풀이: ${statsStore[qData.id].attempts}회`;
+    const statResultEl = document.getElementById('stat-result');
+    if(isCorrect) statResultEl.innerHTML = `결과: <span class="badge-correct">정답 O</span>`;
+    else statResultEl.innerHTML = `결과: <span class="badge-wrong">오답 X</span>`;
+
+    // 보기 스타일 적용
+    const buttons = document.querySelectorAll('.option-item');
+    buttons.forEach(btn => {
+        btn.style.pointerEvents = 'none';
+        btn.classList.remove('selected');
+        const oIdx = parseInt(btn.dataset.orgIdx);
+        
+        const isSelected = selectedOrgIndices.includes(oIdx);
+        const isAnswer = qData.aIndices.includes(oIdx);
+
+        if (isSelected) {
+            if (isAnswer) btn.classList.add('correct');
+            else btn.classList.add('wrong');
+        }
+        if (isAnswer && !isSelected) btn.classList.add('missed');
+    });
+
+    document.getElementById('current-score').innerText = score;
+    document.getElementById('expl-text').innerText = qData.e || "해설 없음";
+    document.getElementById('expl-area').classList.add('show');
+    document.getElementById('check-btn-area').classList.add('hidden');
+}
+
+function finishQuiz() {
+    clearInterval(timerInterval);
+    const total = quizList.length;
+    const finalScore = Math.round((score / total) * 100) || 0;
+    const isPass = finalScore >= 60; // 60점 합격 기준
+
+    // [기능 4] 시험 결과 저장
+    const examLog = loadStorage(STORAGE_KEY_EXAMS);
+    examLog.push({
+        date: new Date().toLocaleString(),
+        score: finalScore,
+        totalQ: total,
+        correctQ: score,
+        isPass: isPass
+    });
+    saveStorage(STORAGE_KEY_EXAMS, examLog);
+
+    document.getElementById('quiz-screen').classList.add('hidden');
+    document.getElementById('result-screen').classList.remove('hidden');
+    
+    document.getElementById('final-score').innerText = finalScore;
+    document.getElementById('total-q-count').innerText = total;
+    document.getElementById('correct-count').innerText = score;
+    
+    const badge = document.getElementById('pass-fail-badge');
+    badge.innerText = isPass ? "🎉 합격" : "😢 불합격";
+    badge.className = `result-badge ${isPass ? 'pass' : 'fail'}`;
+
+    const retryBtn = document.getElementById('btn-retry-wrong');
+    retryBtn.style.display = (total - score > 0) ? 'inline-block' : 'none';
+}
+
+function retryWrong() {
+    // 틀린 문제만 추려서 다시 시작
+    const wrongQs = quizList.filter(q => userHistory[q.id] && !userHistory[q.id].isCorrect);
+    if (wrongQs.length === 0) return alert("오답이 없습니다.");
+
+    quizList = wrongQs;
+    // userHistory는 초기화하되, shuffledOrder는 유지할지 결정. 
+    // 여기선 초기화해서 다시 풀게 함.
+    userHistory = {};
+    quizList.forEach(q => q.shuffledOrder = null); // 다시 섞기 위해
+
+    score = 0;
+    currentIdx = 0;
+
+    document.getElementById('result-screen').classList.add('hidden');
+    document.getElementById('quiz-screen').classList.remove('hidden');
+    loadQuestion(0);
+}
+
+// --- History View ---
+function showExamHistory() {
+    const logs = loadStorage(STORAGE_KEY_EXAMS);
+    const list = document.getElementById('exam-log-list');
+    list.innerHTML = '';
+    
+    if (logs.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:#999;">기록이 없습니다.</p>';
+    } else {
+        // 최신순 정렬
+        [...logs].reverse().forEach((log, i) => {
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = `
+                <div>
+                    <span style="font-weight:bold; color:${log.isPass ? 'var(--primary)' : 'var(--danger)'}">
+                        ${log.isPass ? '합격' : '불합격'}
+                    </span>
+                    <span style="margin-left:5px; color:#555;">${log.date}</span>
+                </div>
+                <div>
+                    <b>${log.score}점</b> (${log.correctQ}/${log.totalQ})
+                </div>
+            `;
+            list.appendChild(item);
+        });
+    }
+    
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('history-screen').classList.remove('hidden');
+}
+
+function closeExamHistory() {
+    document.getElementById('history-screen').classList.add('hidden');
+    document.getElementById('start-screen').classList.remove('hidden');
+}
+
+function clearAllData() {
+    if(confirm("모든 문제 풀이 이력과 시험 기록을 영구적으로 삭제하시겠습니까?")) {
+        localStorage.removeItem(STORAGE_KEY_STATS);
+        localStorage.removeItem(STORAGE_KEY_EXAMS);
+        alert("초기화되었습니다.");
+        location.reload();
+    }
+}
+
+// --- Timer & Nav ---
+function startTimer() {
+    clearInterval(timerInterval);
+    isPaused = false;
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
+        if (!isPaused) {
+            timeRemaining--;
+            updateTimerDisplay();
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                alert("시간 종료!");
+                finishQuiz();
+            }
+        }
+    }, 1000);
+}
+
+function updateTimerDisplay() {
+    const m = Math.floor(timeRemaining / 60);
+    const s = timeRemaining % 60;
+    document.getElementById('timer-display').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+function togglePause() { isPaused = !isPaused; document.getElementById('btn-pause').innerText = isPaused ? "계속" : "일시정지"; document.getElementById('q-container').style.opacity = isPaused ? '0.2' : '1'; document.getElementById('q-container').style.pointerEvents = isPaused ? 'none' : 'auto'; }
+function nextQ() { if (currentIdx < quizList.length - 1) loadQuestion(currentIdx + 1); else if(confirm("제출하시겠습니까?")) finishQuiz(); }
+function prevQ() { if (currentIdx > 0) loadQuestion(currentIdx - 1); }
