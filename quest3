@@ -1,208 +1,67 @@
-    FUNCTION GET_POLYGON_TMXY
-    (
-        I_FIG_SHP    VARCHAR2,
-        I_BLOCK      VARCHAR2,
-        I_POLYGON_XY CLOB -- 형상 블록 X,Y좌표(,로 연속된 좌표)
-    )
-    RETURN CLOB 
-    IS    
-        -- 1. 형상 블록 X,Y 좌표 
-        V_TM_X         CLOB;    -- 형상블록 X 좌표 
-        V_TM_Y         CLOB;    -- 형상블록 Y 좌표    
-            
-        -- 2. 지번 Center 
-        V_CNTRX VARCHAR2(100);
-        V_CNTRY VARCHAR2(100);
-        V_CENTERXY VARCHAR2(100);
-        V_OUTROTANG VARCHAR2(100); 
-            
-        -- 3. 블록 Size
-        V_POINT NUMBER;     -- 형상 POINT 수 
-        V_W_MIN NUMBER;
-        V_H_MIN NUMBER;
-        V_WIDTH NUMBER;
-        V_HEIGHT NUMBER;    
+        static void Main()
+
+        {
+
+            string arguments = "";
+
+            string exePath = "";
 
 
-        -- 4. 점좌표 TM좌표 구하기 
-        V_DIV_X NUMBER(10, 1);
-        V_DIV_Y NUMBER(10, 1);
-        V_CENTER_X NUMBER(10, 1);
-        V_CENTER_Y NUMBER(10, 1);
-        V_TMP VARCHAR2(1000);
 
-        V_PREFIX VARCHAR2(1) := ';';   
-        V_RSVAL CLOB;           --TM좌표로 변환된 XY좌표(';')       
+            try
+
+            {
+
+                string ssoUserID = GetUserID();
+
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+                string exeName = "NewMainShell.exe";
 
 
-        -- RECORD
-        TYPE TMXY_REC_TYPE IS RECORD(X_POS NUMBER, Y_POS NUMBER);                            
-        -- TYPE 
-        TYPE TMXY_ARR IS TABLE OF TMXY_REC_TYPE INDEX BY PLS_INTEGER;
-            
-        -- TABLE 
-        TMXY_TBL  TMXY_ARR;   
-        V_JIBUN   T72B8210.JIBUN%TYPE;
-        
-        -- 디버깅 모드
-        V_DEBUG VARCHAR2(1) := 'N';
-        V_SCALE NUMBER(4,2) := 1;--0.1;
-    
-    BEGIN
-    
-IF V_DEBUG = 'Y' THEN
-DBMS_OUTPUT.put_line('좌표:'||I_POLYGON_XY);
-END IF;
-        
-        -- ;을 포함할 경우 변환된 좌표이므로 변환이 필요 없다.
-        IF I_POLYGON_XY LIKE '%;%' THEN
-            RETURN I_POLYGON_XY;
-        END IF;
-    
-        SELECT JIBUN
-          INTO V_JIBUN
-          FROM (
-                SELECT SHIP, BLOCK, STOCKSDTE, JIBUN,
-                       ROW_NUMBER() OVER (PARTITION BY SHIP, BLOCK ORDER BY STOCKSDTE DESC) AS RN
-                  FROM T72B8210
-                 WHERE SHIP = I_FIG_SHP
-                   AND BLOCK = I_BLOCK
-               )
-        WHERE RN = 1;
-        -- 1. 형상 블록 X,Y 연속좌표를 X, Y로 각각 SPLIT 
-        -- 2D 캐드에서 받아온 좌표인 경우 : 를 포함한다.
-        FOR R IN 
-        (
-            SELECT ROWNUM RN,
-                   TO_NUMBER(COLUMN_VALUE) AS VAL
-              FROM TABLE(SPLIT2(REPLACE(I_POLYGON_XY, ':', ','), ','))
-        )
-        LOOP                             
-            IF MOD(R.RN, 2) = 1 THEN  -- 홀수 
-                                                        
-                IF V_TM_X IS NOT NULL THEN                                                                            
-                   V_TM_X := V_TM_X || '*';                                                                            
-                END IF;
-                                                                            
-                V_TM_X := V_TM_X || R.VAL;                                                                        
-            ELSE                          -- 짝수 
 
-                IF V_TM_Y IS NOT NULL THEN                                                                             
-                   V_TM_Y := V_TM_Y || '*';                                                                                
-                END IF;
-                                                                            
-                V_TM_Y := V_TM_Y || R.VAL;
-                                                                    
-            END IF ;
-                                                              
-        END LOOP; 
+                exePath = Path.Combine(baseDir, exeName);
 
-IF V_DEBUG = 'Y' THEN
-DBMS_OUTPUT.put_line('V_TM_X:'||V_TM_X||',V_TM_Y:'||V_TM_Y);
-END IF;
-        -- 2. 지번 Center 
-        SELECT TO_NUMBER(SUBSTR(CENTERXY, 1, INSTR(CENTERXY, ',') - 1)) CNTRX,
-               TO_NUMBER(SUBSTR(CENTERXY, INSTR(CENTERXY, ',') + 1)) CNTRY,
-               CENTERXY,
-               (
-                    SELECT OUTROTANG
-                      FROM T72B8130
-                     WHERE JBNGRP = (SELECT MAX(JBNGRP)
-                                       FROM T72B1220
-                                      WHERE JIBUN = V_JIBUN)
-               ) OUTROTANG
-          INTO V_CNTRX, V_CNTRY, V_CENTERXY, V_OUTROTANG
-          FROM (SELECT PKG_GIS_COMMON_NEW1.GET_JIBUNCENTER_POLYGON(V_JIBUN) AS CENTERXY
-                  FROM DUAL);                     
 
-        -- 3. 블록 SIZE (scale 60)  
-        SELECT MAX(TO_NUMBER(A.LVL)) AS POINT_QTY,
-               MAX(TO_NUMBER(A.VERTEX)) - MIN(TO_NUMBER(A.VERTEX)) AS WIDTH, 
-               MAX(TO_NUMBER(B.VERTEX)) - MIN(TO_NUMBER(B.VERTEX)) AS HEIGHT,
-               MIN(TO_NUMBER(A.VERTEX)) AS MIN_WIDTH, 
-               MIN(TO_NUMBER(B.VERTEX)) AS MIN_HEIGHT
-        INTO V_POINT, V_WIDTH, V_HEIGHT, V_W_MIN, V_H_MIN
-        FROM
-        (   
-               SELECT ROWNUM LVL, ROUND(TO_NUMBER(COLUMN_VALUE) * V_SCALE, 1) VERTEX FROM TABLE(SPLIT2(V_TM_X, '*')) 
 
-        ) A,         
-        (
-               SELECT ROWNUM LVL, ROUND(TO_NUMBER(COLUMN_VALUE) * V_SCALE, 1) VERTEX FROM TABLE(SPLIT2(V_TM_Y, '*'))
+                arguments = $"\"test\" \"test\" \"{ssoUserID}\" \"\" \"\" \"\" \"\" \"\" \"\" \"APS10100\" \"A\" \"amihics_update.exe\"";
 
-        ) B
-        WHERE A.LVL = B.LVL;
 
-        V_CENTER_X := V_WIDTH / 2;
-        V_CENTER_Y := V_HEIGHT / 2;
 
-        -- 4. POLYGON TMXY 좌표 
-        SELECT A.VERTEX AS X_POS
-             , B.VERTEX AS Y_POS
-          BULK COLLECT INTO TMXY_TBL
-          FROM
-        (
-                SELECT ROUND(TO_NUMBER(SUBSTR(VERTEX,
-                              INSTR(DIVISION||VERTEX,DIVISION,1,LEVEL),
-                              INSTR(VERTEX||DIVISION,DIVISION,1,LEVEL) - INSTR(DIVISION||VERTEX,DIVISION,1,LEVEL)
-                             )) * V_SCALE , 1) VERTEX , LEVEL LVL
-                FROM (SELECT V_TM_X VERTEX, '*' AS  DIVISION FROM DUAL) 
-                CONNECT BY LEVEL <= LENGTH(TRANSLATE(DIVISION||VERTEX,DIVISION||VERTEX,DIVISION))   
+                ProcessStartInfo startInfo = new ProcessStartInfo
 
-        ) A,         
-        (
+                {
 
-                SELECT ROUND(TO_NUMBER(SUBSTR(VERTEX,
-                              INSTR(DIVISION||VERTEX,DIVISION,1,LEVEL),
-                              INSTR(VERTEX||DIVISION,DIVISION,1,LEVEL) - INSTR(DIVISION||VERTEX,DIVISION,1,LEVEL)
-                             )) * V_SCALE , 1) VERTEX , LEVEL LVL
-                FROM (SELECT V_TM_Y VERTEX, '*' AS  DIVISION FROM DUAL) 
-                CONNECT BY LEVEL <= LENGTH(TRANSLATE(DIVISION||VERTEX,DIVISION||VERTEX,DIVISION))
+                    FileName = exePath,
 
-        ) B
-        WHERE A.LVL = B.LVL;
-                
-        FOR i IN 1..TMXY_TBL.COUNT
-        LOOP
-                
-             V_DIV_X := 0;
-             V_DIV_Y := 0;
+                    Arguments = arguments,
 
-             IF TMXY_TBL(i).X_POS < V_CENTER_X THEN             
-                 V_DIV_X := (V_CENTER_X - TMXY_TBL(i).X_POS) * -1;             
-             ELSE                          
-                 V_DIV_X := (TMXY_TBL(i).X_POS - V_CENTER_X);                 
-             END IF;
-                     
-             IF TMXY_TBL(i).Y_POS < V_CENTER_Y THEN             
-                 V_DIV_Y := (V_CENTER_Y - TMXY_TBL(i).Y_POS) * -1;
-             ELSE                          
-                 V_DIV_Y := (TMXY_TBL(i).Y_POS - V_CENTER_Y);
-             END IF;
-           SELECT POINTROTATE_POLYGON(V_CENTERXY, 
-                                      TO_CHAR(TO_NUMBER(V_CNTRX) + V_DIV_X - V_W_MIN) || ',' || 
-                                      TO_CHAR(TO_NUMBER(V_CNTRY) + V_DIV_Y - V_H_MIN), 
-                                      TO_NUMBER(V_OUTROTANG) * -1)
-             INTO V_TMP
-             FROM DUAL;
+                    UseShellExecute = true,
 
-             IF V_RSVAL IS NOT NULL THEN             
-                V_RSVAL := V_RSVAL || V_PREFIX;             
-             END IF;
-                     
-             V_RSVAL := V_RSVAL || V_TMP;
-                
-        END LOOP;        
+                    Verb = "runas"
 
-IF V_DEBUG = 'Y' THEN
-DBMS_OUTPUT.put_line('결과:'||V_RSVAL);
-END IF;
-        RETURN V_RSVAL;            
-        
-    EXCEPTION
-        WHEN OTHERS THEN
-IF V_DEBUG = 'Y' THEN
-DBMS_OUTPUT.put_line('오류:'||SQLERRM);
-END IF;
-            RETURN NULL;
-    END GET_POLYGON_TMXY;
+                };
+
+
+
+                Process.Start(startInfo);
+
+            }
+
+            catch (Exception ex)
+
+            {
+
+                MessageBox.Show($"{ex}\n\n{exePath} {arguments}", "알림", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+            }
+
+            finally
+
+            {
+
+                Application.Exit();
+
+            }
+
+        }
