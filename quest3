@@ -1,67 +1,259 @@
-        static void Main()
-
+        private void RawDataSummeryProc()
         {
+            RawDataDT.BeginLoadData();
 
-            string arguments = "";
-
-            string exePath = "";
-
-
-
-            try
-
+            for (int ix = 0; ix < RawDataDT.Rows.Count; ix++)
             {
+                RawDataDT.Rows[ix]["S1_YY_01"] = (decimal)RawDataDT.Rows[ix]["E1_YY_01"] - (decimal)RawDataDT.Rows[ix]["N1_YY_01"];
+                RawDataDT.Rows[ix]["S1_YY_02"] = (decimal)RawDataDT.Rows[ix]["E1_YY_02"] - (decimal)RawDataDT.Rows[ix]["N1_YY_02"];
+                RawDataDT.Rows[ix]["S1_YY_03"] = (decimal)RawDataDT.Rows[ix]["E1_YY_03"] - (decimal)RawDataDT.Rows[ix]["N1_YY_03"];
+                RawDataDT.Rows[ix]["S1_YY_04"] = (decimal)RawDataDT.Rows[ix]["E1_YY_04"] - (decimal)RawDataDT.Rows[ix]["N1_YY_04"];
+                RawDataDT.Rows[ix]["S1_YY_05"] = (decimal)RawDataDT.Rows[ix]["E1_YY_05"] - (decimal)RawDataDT.Rows[ix]["N1_YY_05"];
+                RawDataDT.Rows[ix]["S1_YY_06"] = (decimal)RawDataDT.Rows[ix]["E1_YY_06"] - (decimal)RawDataDT.Rows[ix]["N1_YY_06"];
+                RawDataDT.Rows[ix]["S1_YY_07"] = (decimal)RawDataDT.Rows[ix]["E1_YY_07"] - (decimal)RawDataDT.Rows[ix]["N1_YY_07"];
+                RawDataDT.Rows[ix]["S1_YY_08"] = (decimal)RawDataDT.Rows[ix]["E1_YY_08"] - (decimal)RawDataDT.Rows[ix]["N1_YY_08"];
+                RawDataDT.Rows[ix]["S1_YY_09"] = (decimal)RawDataDT.Rows[ix]["E1_YY_09"] - (decimal)RawDataDT.Rows[ix]["N1_YY_09"];
+                RawDataDT.Rows[ix]["S1_YY_10"] = (decimal)RawDataDT.Rows[ix]["E1_YY_10"] - (decimal)RawDataDT.Rows[ix]["N1_YY_10"];
+                RawDataDT.Rows[ix]["S1_YY_11"] = (decimal)RawDataDT.Rows[ix]["E1_YY_11"] - (decimal)RawDataDT.Rows[ix]["N1_YY_11"];
+                RawDataDT.Rows[ix]["S1_YY_12"] = (decimal)RawDataDT.Rows[ix]["E1_YY_12"] - (decimal)RawDataDT.Rows[ix]["N1_YY_12"];
 
-                string ssoUserID = GetUserID();
+                RawDataDT.Rows[ix]["S2_YY_01"] = (decimal)RawDataDT.Rows[ix]["E2_YY_01"] - (decimal)RawDataDT.Rows[ix]["N2_YY_01"];
+                RawDataDT.Rows[ix]["S2_YY_02"] = (decimal)RawDataDT.Rows[ix]["E2_YY_02"] - (decimal)RawDataDT.Rows[ix]["N2_YY_02"];
+                RawDataDT.Rows[ix]["S2_YY_03"] = (decimal)RawDataDT.Rows[ix]["E2_YY_03"] - (decimal)RawDataDT.Rows[ix]["N2_YY_03"];
+                RawDataDT.Rows[ix]["S2_YY_04"] = (decimal)RawDataDT.Rows[ix]["E2_YY_04"] - (decimal)RawDataDT.Rows[ix]["N2_YY_04"];
+                RawDataDT.Rows[ix]["S2_YY_05"] = (decimal)RawDataDT.Rows[ix]["E2_YY_05"] - (decimal)RawDataDT.Rows[ix]["N2_YY_05"];
+                RawDataDT.Rows[ix]["S2_YY_06"] = (decimal)RawDataDT.Rows[ix]["E2_YY_06"] - (decimal)RawDataDT.Rows[ix]["N2_YY_06"];
+                RawDataDT.Rows[ix]["S2_YY_07"] = (decimal)RawDataDT.Rows[ix]["E2_YY_07"] - (decimal)RawDataDT.Rows[ix]["N2_YY_07"];
+                RawDataDT.Rows[ix]["S2_YY_08"] = (decimal)RawDataDT.Rows[ix]["E2_YY_08"] - (decimal)RawDataDT.Rows[ix]["N2_YY_08"];
+                RawDataDT.Rows[ix]["S2_YY_09"] = (decimal)RawDataDT.Rows[ix]["E2_YY_09"] - (decimal)RawDataDT.Rows[ix]["N2_YY_09"];
+                RawDataDT.Rows[ix]["S2_YY_10"] = (decimal)RawDataDT.Rows[ix]["E2_YY_10"] - (decimal)RawDataDT.Rows[ix]["N2_YY_10"];
+                RawDataDT.Rows[ix]["S2_YY_11"] = (decimal)RawDataDT.Rows[ix]["E2_YY_11"] - (decimal)RawDataDT.Rows[ix]["N2_YY_11"];
+                RawDataDT.Rows[ix]["S2_YY_12"] = (decimal)RawDataDT.Rows[ix]["E2_YY_12"] - (decimal)RawDataDT.Rows[ix]["N2_YY_12"];
 
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                RawDataDT.Rows[ix]["E1_YY_TOT"] = (decimal)RawDataDT.Rows[ix]["E1_YY_01"] + (decimal)RawDataDT.Rows[ix]["E1_YY_02"] + (decimal)RawDataDT.Rows[ix]["E1_YY_03"] + (decimal)RawDataDT.Rows[ix]["E1_YY_04"] + (decimal)RawDataDT.Rows[ix]["E1_YY_05"] + (decimal)RawDataDT.Rows[ix]["E1_YY_06"]
+                                 + (decimal)RawDataDT.Rows[ix]["E1_YY_07"] + (decimal)RawDataDT.Rows[ix]["E1_YY_08"] + (decimal)RawDataDT.Rows[ix]["E1_YY_09"] + (decimal)RawDataDT.Rows[ix]["E1_YY_10"] + (decimal)RawDataDT.Rows[ix]["E1_YY_11"] + (decimal)RawDataDT.Rows[ix]["E1_YY_12"];
 
-                string exeName = "NewMainShell.exe";
+                RawDataDT.Rows[ix]["S1_YY_TOT"] = (decimal)RawDataDT.Rows[ix]["S1_YY_01"] + (decimal)RawDataDT.Rows[ix]["S1_YY_02"] + (decimal)RawDataDT.Rows[ix]["S1_YY_03"] + (decimal)RawDataDT.Rows[ix]["S1_YY_04"] + (decimal)RawDataDT.Rows[ix]["S1_YY_05"] + (decimal)RawDataDT.Rows[ix]["S1_YY_06"]
+                     + (decimal)RawDataDT.Rows[ix]["S1_YY_07"] + (decimal)RawDataDT.Rows[ix]["S1_YY_08"] + (decimal)RawDataDT.Rows[ix]["S1_YY_09"] + (decimal)RawDataDT.Rows[ix]["S1_YY_10"] + (decimal)RawDataDT.Rows[ix]["S1_YY_11"] + (decimal)RawDataDT.Rows[ix]["S1_YY_12"];
 
+                RawDataDT.Rows[ix]["E2_YY_TOT"] = (decimal)RawDataDT.Rows[ix]["E2_YY_01"] + (decimal)RawDataDT.Rows[ix]["E2_YY_02"] + (decimal)RawDataDT.Rows[ix]["E2_YY_03"] + (decimal)RawDataDT.Rows[ix]["E2_YY_04"] + (decimal)RawDataDT.Rows[ix]["E2_YY_05"] + (decimal)RawDataDT.Rows[ix]["E2_YY_06"]
+                                 + (decimal)RawDataDT.Rows[ix]["E2_YY_07"] + (decimal)RawDataDT.Rows[ix]["E2_YY_08"] + (decimal)RawDataDT.Rows[ix]["E2_YY_09"] + (decimal)RawDataDT.Rows[ix]["E2_YY_10"] + (decimal)RawDataDT.Rows[ix]["E2_YY_11"] + (decimal)RawDataDT.Rows[ix]["E2_YY_12"];
 
+                RawDataDT.Rows[ix]["S2_YY_TOT"] = (decimal)RawDataDT.Rows[ix]["S2_YY_01"] + (decimal)RawDataDT.Rows[ix]["S2_YY_02"] + (decimal)RawDataDT.Rows[ix]["S2_YY_03"] + (decimal)RawDataDT.Rows[ix]["S2_YY_04"] + (decimal)RawDataDT.Rows[ix]["S2_YY_05"] + (decimal)RawDataDT.Rows[ix]["S2_YY_06"]
+                     + (decimal)RawDataDT.Rows[ix]["S2_YY_07"] + (decimal)RawDataDT.Rows[ix]["S2_YY_08"] + (decimal)RawDataDT.Rows[ix]["S2_YY_09"] + (decimal)RawDataDT.Rows[ix]["S2_YY_10"] + (decimal)RawDataDT.Rows[ix]["S2_YY_11"] + (decimal)RawDataDT.Rows[ix]["S2_YY_12"];
+            }
 
-                exePath = Path.Combine(baseDir, exeName);
+            var query = from rawdata in RawDataDT.AsEnumerable()
+                        let k = new
+                        {
+                            figshp = rawdata.Field<string>("FIG_SHP"),
+                            dptnm = rawdata.Field<string>("DPT_NM"),
+                            wc = rawdata.Field<DateTime>("WC"),
+                            kl = rawdata.Field<DateTime>("KL"),
+                            lc = rawdata.Field<DateTime>("LC"),
+                            cl = rawdata.Field<DateTime>("CL"),
+                            dl = rawdata.Field<DateTime>("DL")
+                        }
+                        group rawdata by k into tb
+                        select new
+                        {
+                            FIG_SHP = tb.Key.figshp,
+                            DPT_NM = tb.Key.dptnm,
+                            WC = tb.Key.wc,
+                            KL = tb.Key.kl,
+                            LC = tb.Key.lc,
+                            CL = tb.Key.cl,
+                            DL = tb.Key.dl,
 
+                            N1_YY_01 = tb.Sum(p => p.Field<decimal>("N1_YY_01")),
+                            N1_YY_02 = tb.Sum(p => p.Field<decimal>("N1_YY_02")),
+                            N1_YY_03 = tb.Sum(p => p.Field<decimal>("N1_YY_03")),
+                            N1_YY_04 = tb.Sum(p => p.Field<decimal>("N1_YY_04")),
+                            N1_YY_05 = tb.Sum(p => p.Field<decimal>("N1_YY_05")),
+                            N1_YY_06 = tb.Sum(p => p.Field<decimal>("N1_YY_06")),
+                            N1_YY_07 = tb.Sum(p => p.Field<decimal>("N1_YY_07")),
+                            N1_YY_08 = tb.Sum(p => p.Field<decimal>("N1_YY_08")),
+                            N1_YY_09 = tb.Sum(p => p.Field<decimal>("N1_YY_09")),
+                            N1_YY_10 = tb.Sum(p => p.Field<decimal>("N1_YY_10")),
+                            N1_YY_11 = tb.Sum(p => p.Field<decimal>("N1_YY_11")),
+                            N1_YY_12 = tb.Sum(p => p.Field<decimal>("N1_YY_12")),
+                            N1_YY_TOT = tb.Sum(p => p.Field<decimal>("N1_YY_TOT")),
 
+                            N2_YY_01 = tb.Sum(p => p.Field<decimal>("N2_YY_01")),
+                            N2_YY_02 = tb.Sum(p => p.Field<decimal>("N2_YY_02")),
+                            N2_YY_03 = tb.Sum(p => p.Field<decimal>("N2_YY_03")),
+                            N2_YY_04 = tb.Sum(p => p.Field<decimal>("N2_YY_04")),
+                            N2_YY_05 = tb.Sum(p => p.Field<decimal>("N2_YY_05")),
+                            N2_YY_06 = tb.Sum(p => p.Field<decimal>("N2_YY_06")),
+                            N2_YY_07 = tb.Sum(p => p.Field<decimal>("N2_YY_07")),
+                            N2_YY_08 = tb.Sum(p => p.Field<decimal>("N2_YY_08")),
+                            N2_YY_09 = tb.Sum(p => p.Field<decimal>("N2_YY_09")),
+                            N2_YY_10 = tb.Sum(p => p.Field<decimal>("N2_YY_10")),
+                            N2_YY_11 = tb.Sum(p => p.Field<decimal>("N2_YY_11")),
+                            N2_YY_12 = tb.Sum(p => p.Field<decimal>("N2_YY_12")),
+                            N2_YY_TOT = tb.Sum(p => p.Field<decimal>("N2_YY_TOT")),
 
-                arguments = $"\"test\" \"test\" \"{ssoUserID}\" \"\" \"\" \"\" \"\" \"\" \"\" \"APS10100\" \"A\" \"amihics_update.exe\"";
+                            E1_YY_01 = tb.Sum(p => p.Field<decimal>("E1_YY_01")),
+                            E1_YY_02 = tb.Sum(p => p.Field<decimal>("E1_YY_02")),
+                            E1_YY_03 = tb.Sum(p => p.Field<decimal>("E1_YY_03")),
+                            E1_YY_04 = tb.Sum(p => p.Field<decimal>("E1_YY_04")),
+                            E1_YY_05 = tb.Sum(p => p.Field<decimal>("E1_YY_05")),
+                            E1_YY_06 = tb.Sum(p => p.Field<decimal>("E1_YY_06")),
+                            E1_YY_07 = tb.Sum(p => p.Field<decimal>("E1_YY_07")),
+                            E1_YY_08 = tb.Sum(p => p.Field<decimal>("E1_YY_08")),
+                            E1_YY_09 = tb.Sum(p => p.Field<decimal>("E1_YY_09")),
+                            E1_YY_10 = tb.Sum(p => p.Field<decimal>("E1_YY_10")),
+                            E1_YY_11 = tb.Sum(p => p.Field<decimal>("E1_YY_11")),
+                            E1_YY_12 = tb.Sum(p => p.Field<decimal>("E1_YY_12")),
+                            E1_YY_TOT = tb.Sum(p => p.Field<decimal>("E1_YY_TOT")),
 
+                            E2_YY_01 = tb.Sum(p => p.Field<decimal>("E2_YY_01")),
+                            E2_YY_02 = tb.Sum(p => p.Field<decimal>("E2_YY_02")),
+                            E2_YY_03 = tb.Sum(p => p.Field<decimal>("E2_YY_03")),
+                            E2_YY_04 = tb.Sum(p => p.Field<decimal>("E2_YY_04")),
+                            E2_YY_05 = tb.Sum(p => p.Field<decimal>("E2_YY_05")),
+                            E2_YY_06 = tb.Sum(p => p.Field<decimal>("E2_YY_06")),
+                            E2_YY_07 = tb.Sum(p => p.Field<decimal>("E2_YY_07")),
+                            E2_YY_08 = tb.Sum(p => p.Field<decimal>("E2_YY_08")),
+                            E2_YY_09 = tb.Sum(p => p.Field<decimal>("E2_YY_09")),
+                            E2_YY_10 = tb.Sum(p => p.Field<decimal>("E2_YY_10")),
+                            E2_YY_11 = tb.Sum(p => p.Field<decimal>("E2_YY_11")),
+                            E2_YY_12 = tb.Sum(p => p.Field<decimal>("E2_YY_12")),
+                            E2_YY_TOT = tb.Sum(p => p.Field<decimal>("E2_YY_TOT")),
 
+                            S1_YY_01 = tb.Sum(p => p.Field<decimal>("S1_YY_01")),
+                            S1_YY_02 = tb.Sum(p => p.Field<decimal>("S1_YY_02")),
+                            S1_YY_03 = tb.Sum(p => p.Field<decimal>("S1_YY_03")),
+                            S1_YY_04 = tb.Sum(p => p.Field<decimal>("S1_YY_04")),
+                            S1_YY_05 = tb.Sum(p => p.Field<decimal>("S1_YY_05")),
+                            S1_YY_06 = tb.Sum(p => p.Field<decimal>("S1_YY_06")),
+                            S1_YY_07 = tb.Sum(p => p.Field<decimal>("S1_YY_07")),
+                            S1_YY_08 = tb.Sum(p => p.Field<decimal>("S1_YY_08")),
+                            S1_YY_09 = tb.Sum(p => p.Field<decimal>("S1_YY_09")),
+                            S1_YY_10 = tb.Sum(p => p.Field<decimal>("S1_YY_10")),
+                            S1_YY_11 = tb.Sum(p => p.Field<decimal>("S1_YY_11")),
+                            S1_YY_12 = tb.Sum(p => p.Field<decimal>("S1_YY_12")),
+                            S1_YY_TOT = tb.Sum(p => p.Field<decimal>("S1_YY_TOT")),
 
-                ProcessStartInfo startInfo = new ProcessStartInfo
+                            S2_YY_01 = tb.Sum(p => p.Field<decimal>("S2_YY_01")),
+                            S2_YY_02 = tb.Sum(p => p.Field<decimal>("S2_YY_02")),
+                            S2_YY_03 = tb.Sum(p => p.Field<decimal>("S2_YY_03")),
+                            S2_YY_04 = tb.Sum(p => p.Field<decimal>("S2_YY_04")),
+                            S2_YY_05 = tb.Sum(p => p.Field<decimal>("S2_YY_05")),
+                            S2_YY_06 = tb.Sum(p => p.Field<decimal>("S2_YY_06")),
+                            S2_YY_07 = tb.Sum(p => p.Field<decimal>("S2_YY_07")),
+                            S2_YY_08 = tb.Sum(p => p.Field<decimal>("S2_YY_08")),
+                            S2_YY_09 = tb.Sum(p => p.Field<decimal>("S2_YY_09")),
+                            S2_YY_10 = tb.Sum(p => p.Field<decimal>("S2_YY_10")),
+                            S2_YY_11 = tb.Sum(p => p.Field<decimal>("S2_YY_11")),
+                            S2_YY_12 = tb.Sum(p => p.Field<decimal>("S2_YY_12")),
+                            S2_YY_TOT = tb.Sum(p => p.Field<decimal>("S2_YY_TOT")),
 
+                        };
+
+            foreach (var item in query)
+            {
+                foreach (DataRow oRow in DptDataDT.Rows)
                 {
+                    if (oRow["FIG_SHP"].ToString() == item.FIG_SHP.ToString() && oRow["DPT_NM"].ToString() == item.DPT_NM.ToString()
+                            && oRow["WC"].ToString() == item.WC.ToString() && oRow["KL"].ToString() == item.KL.ToString() && oRow["LC"].ToString() == item.LC.ToString()
+                            && oRow["CL"].ToString() == item.CL.ToString() && oRow["DL"].ToString() == item.DL.ToString())
+                    {
 
-                    FileName = exePath,
+                        oRow["N1_YY_01"] = item.N1_YY_01;
+                        oRow["N2_YY_01"] = item.N2_YY_01;
+                        oRow["E1_YY_01"] = item.E1_YY_01;
+                        oRow["E2_YY_01"] = item.E2_YY_01;
+                        oRow["S1_YY_01"] = item.S1_YY_01;
+                        oRow["S2_YY_01"] = item.S2_YY_01;
 
-                    Arguments = arguments,
+                        oRow["N1_YY_02"] = item.N1_YY_02;
+                        oRow["N2_YY_02"] = item.N2_YY_02;
+                        oRow["E1_YY_02"] = item.E1_YY_02;
+                        oRow["E2_YY_02"] = item.E2_YY_02;
+                        oRow["S1_YY_02"] = item.S1_YY_02;
+                        oRow["S2_YY_02"] = item.S2_YY_02;
 
-                    UseShellExecute = true,
+                        oRow["N1_YY_03"] = item.N1_YY_03;
+                        oRow["N2_YY_03"] = item.N2_YY_03;
+                        oRow["E1_YY_03"] = item.E1_YY_03;
+                        oRow["E2_YY_03"] = item.E2_YY_03;
+                        oRow["S1_YY_03"] = item.S1_YY_03;
+                        oRow["S2_YY_03"] = item.S2_YY_03;
 
-                    Verb = "runas"
+                        oRow["N1_YY_04"] = item.N1_YY_04;
+                        oRow["N2_YY_04"] = item.N2_YY_04;
+                        oRow["E1_YY_04"] = item.E1_YY_04;
+                        oRow["E2_YY_04"] = item.E2_YY_04;
+                        oRow["S1_YY_04"] = item.S1_YY_04;
+                        oRow["S2_YY_04"] = item.S2_YY_04;
 
-                };
+                        oRow["N1_YY_05"] = item.N1_YY_05;
+                        oRow["N2_YY_05"] = item.N2_YY_05;
+                        oRow["E1_YY_05"] = item.E1_YY_05;
+                        oRow["E2_YY_05"] = item.E2_YY_05;
+                        oRow["S1_YY_05"] = item.S1_YY_05;
+                        oRow["S2_YY_05"] = item.S2_YY_05;
 
+                        oRow["N1_YY_06"] = item.N1_YY_06;
+                        oRow["N2_YY_06"] = item.N2_YY_06;
+                        oRow["E1_YY_06"] = item.E1_YY_06;
+                        oRow["E2_YY_06"] = item.E2_YY_06;
+                        oRow["S1_YY_06"] = item.S1_YY_06;
+                        oRow["S2_YY_06"] = item.S2_YY_06;
 
+                        oRow["N1_YY_07"] = item.N1_YY_07;
+                        oRow["N2_YY_07"] = item.N2_YY_07;
+                        oRow["E1_YY_07"] = item.E1_YY_07;
+                        oRow["E2_YY_07"] = item.E2_YY_07;
+                        oRow["S1_YY_07"] = item.S1_YY_07;
+                        oRow["S2_YY_07"] = item.S2_YY_07;
 
-                Process.Start(startInfo);
+                        oRow["N1_YY_08"] = item.N1_YY_08;
+                        oRow["N2_YY_08"] = item.N2_YY_08;
+                        oRow["E1_YY_08"] = item.E1_YY_08;
+                        oRow["E2_YY_08"] = item.E2_YY_08;
+                        oRow["S1_YY_08"] = item.S1_YY_08;
+                        oRow["S2_YY_08"] = item.S2_YY_08;
 
+                        oRow["N1_YY_09"] = item.N1_YY_09;
+                        oRow["N2_YY_09"] = item.N2_YY_09;
+                        oRow["E1_YY_09"] = item.E1_YY_09;
+                        oRow["E2_YY_09"] = item.E2_YY_09;
+                        oRow["S1_YY_09"] = item.S1_YY_09;
+                        oRow["S2_YY_09"] = item.S2_YY_09;
+
+                        oRow["N1_YY_10"] = item.N1_YY_10;
+                        oRow["N2_YY_10"] = item.N2_YY_10;
+                        oRow["E1_YY_10"] = item.E1_YY_10;
+                        oRow["E2_YY_10"] = item.E2_YY_10;
+                        oRow["S1_YY_10"] = item.S1_YY_10;
+                        oRow["S2_YY_10"] = item.S2_YY_10;
+
+                        oRow["N1_YY_11"] = item.N1_YY_11;
+                        oRow["N2_YY_11"] = item.N2_YY_11;
+                        oRow["E1_YY_11"] = item.E1_YY_11;
+                        oRow["E2_YY_11"] = item.E2_YY_11;
+                        oRow["S1_YY_11"] = item.S1_YY_11;
+                        oRow["S2_YY_11"] = item.S2_YY_11;
+
+                        oRow["N1_YY_12"] = item.N1_YY_12;
+                        oRow["N2_YY_12"] = item.N2_YY_12;
+                        oRow["E1_YY_12"] = item.E1_YY_12;
+                        oRow["E2_YY_12"] = item.E2_YY_12;
+                        oRow["S1_YY_12"] = item.S1_YY_12;
+                        oRow["S2_YY_12"] = item.S2_YY_12;
+
+                        oRow["N1_YY_TOT"] = item.N1_YY_TOT;
+                        oRow["N2_YY_TOT"] = item.N2_YY_TOT;
+                        oRow["E1_YY_TOT"] = item.E1_YY_TOT;
+                        oRow["E2_YY_TOT"] = item.E2_YY_TOT;
+                        oRow["S1_YY_TOT"] = item.S1_YY_TOT;
+                        oRow["S2_YY_TOT"] = item.S2_YY_TOT;
+
+                    }
+                }
             }
 
-            catch (Exception ex)
-
-            {
-
-                MessageBox.Show($"{ex}\n\n{exePath} {arguments}", "알림", MessageBoxButtons.OK, MessageBoxIcon.Error);
-
-            }
-
-            finally
-
-            {
-
-                Application.Exit();
-
-            }
-
+            RawDataDT.EndLoadData();
         }
