@@ -1,4 +1,5 @@
 using DevExpress.Charts.Model;
+using DevExpress.XtraRichEdit;
 using DevExpress.XtraRichEdit.API.Native;
 using DevTools.Util;
 using System;
@@ -50,17 +51,6 @@ namespace DevTools.UI.Control
 
         // [RAG] 인메모리 벡터 저장소 (DB와 동기화)
         private List<VectorData> _vectorStore = new List<VectorData>();
-
-        private readonly Dictionary<string, int> _modelTokenLimits = new Dictionary<string, int>
-        {
-            { "qwen2.5", 32768 },
-            { "deepseek-r1", 8192 },
-            { "llama3", 8192 },
-            { "mistral", 32768 },
-            { "gemma", 8192 },
-            { "phi", 4096 }
-        };
-
         private static readonly HttpClient client = new HttpClient();
         private List<object> _chatHistory = new List<object>();
 
@@ -80,16 +70,53 @@ namespace DevTools.UI.Control
 
             InitializeDatabase();
             LoadVectorsFromDb();
-            LoadSystemPrompt();
             LoadModelsToComboBox();
+            LoadSystemPrompt();
 
             LoadDefaultSetting();
+
+            // 리스트박스 선택 시 상세 내용 보기 이벤트 연결
+            lstFiles.SelectedIndexChanged += lstFiles_SelectedIndexChanged;
+
+            SetGlobalFontSettings();
 
             // GPU 모니터링 (필요 시 주석 해제)
             //_gpuTimer = new Timer();
             //_gpuTimer.Interval = 2000; 
             //_gpuTimer.Tick += GpuTimer_Tick;
             //_gpuTimer.Start();
+        }
+
+        private void SetGlobalFontSettings()
+        {
+            // 디자인에 있는 모든 리치 에디트 컨트롤 목록
+            RichEditControl[] editors = { txtQuest, txtResult, txtSystemPrompt, txtAttFile, txtResultInfo };
+
+            foreach (var edit in editors)
+            {
+                if (edit == null) continue;
+
+                // 1. 현재 로드된 문서에 즉시 적용
+                SetDefaultFont(edit);
+
+                // 2. 문서가 초기화(CreateNewDocument 등) 될 때마다 다시 적용되도록 이벤트 연결
+                edit.EmptyDocumentCreated -= RichEdit_EmptyDocumentCreated; // 중복 방지 제거
+                edit.EmptyDocumentCreated += RichEdit_EmptyDocumentCreated;
+            }
+        }
+
+        private void RichEdit_EmptyDocumentCreated(object sender, EventArgs e)
+        {
+            SetDefaultFont(sender as RichEditControl);
+        }
+
+        private void SetDefaultFont(RichEditControl editor)
+        {
+            if (editor == null) return;
+
+            editor.Document.DefaultCharacterProperties.FontName = "Consolas";
+            editor.Document.DefaultCharacterProperties.FontSize = 10;
+            editor.Document.DefaultCharacterProperties.ForeColor = Color.Black;
         }
 
         protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
@@ -179,6 +206,7 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
 
         private void SaveDefaultSetting()
         {
+            return;
             using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
             {
                 conn.Open();
@@ -228,11 +256,6 @@ Num_ctx = excluded.Num_ctx;";
                         }
                     }
                 }
-
-                if(_systemPropt.Count > 0)
-                {
-                    cboSystemPrpt.SelectedIndex = 0;
-                }
             }
             catch (Exception ex)
             {
@@ -273,7 +296,8 @@ Contents = excluded.Contents;";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     using (var reader = cmd.ExecuteReader())
                     {
-                        var loadedFiles = new HashSet<string>();
+                        // 중복 방지용 (Key: FileName)
+                        var loadedItems = new Dictionary<string, FileListItem>();
 
                         while (reader.Read())
                         {
@@ -292,16 +316,40 @@ Contents = excluded.Contents;";
                                         TextChunk = chunk,
                                         Vector = vector
                                     });
-                                    loadedFiles.Add(fileName);
+
+                                    // 리스트박스용 아이템 생성 (아직 목록에 없으면)
+                                    if (!loadedItems.ContainsKey(fileName))
+                                    {
+                                        string displayText = fileName; // 기본값: 파일명
+
+                                        // 스니펫인 경우 내용에서 [분류] 또는 [제목] 라인을 찾아 표시명으로 사용
+                                        if (fileName.StartsWith("SNIPPET_"))
+                                        {
+                                            using (StringReader sr = new StringReader(chunk))
+                                            {
+                                                string line;
+                                                while ((line = sr.ReadLine()) != null)
+                                                {
+                                                    if (line.StartsWith("[분류]") || line.StartsWith("[제목]"))
+                                                    {
+                                                        displayText = line;
+                                                        break; // 첫 번째 발견된 태그를 사용
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        loadedItems.Add(fileName, new FileListItem { FileName = fileName, DisplayText = displayText });
+                                    }
                                 }
                             }
                             catch { }
                         }
 
-                        foreach (var file in loadedFiles)
+                        // UI 리스트박스에 추가
+                        foreach (var item in loadedItems.Values)
                         {
-                            if (!lstFiles.Items.Contains(file))
-                                lstFiles.Items.Add(file);
+                            lstFiles.Items.Add(item);
                         }
                     }
                 }
@@ -363,19 +411,10 @@ Contents = excluded.Contents;";
         {
             if (txtAttFile == null) return;
 
-            txtAttFile.BeginUpdate();
-            txtAttFile.Text = "";
-            try
+            // 선택된 항목이 없을 때는 안내 문구만 표시
+            if (lstFiles.SelectedIndex == -1)
             {
-                txtAttFile.Document.AppendText($"[RAG Knowledge Base]\nTotal Chunks: {_vectorStore.Count}\n\n[Loaded Sources]\n");
-                foreach (var item in lstFiles.Items)
-                {
-                    txtAttFile.Document.AppendText($"- {item}\n");
-                }
-            }
-            finally
-            {
-                txtAttFile.EndUpdate();
+                txtAttFile.Text = $"[RAG Knowledge Base]\nTotal Chunks: {_vectorStore.Count}\n\n(목록을 클릭하면 해당 파일의 상세 내용이 표시됩니다)";
             }
         }
 
@@ -406,11 +445,22 @@ Contents = excluded.Contents;";
             {
                 if (MessageBox.Show("선택한 항목을 DB에서 삭제하시겠습니까?", "확인", MessageBoxButtons.YesNo) == DialogResult.Yes)
                 {
-                    for (int i = lstFiles.SelectedIndices.Count - 1; i >= 0; i--)
+                    // 삭제할 아이템 수집
+                    var itemsToRemove = new List<FileListItem>();
+                    foreach (int index in lstFiles.SelectedIndices)
                     {
-                        string fileName = lstFiles.Items[lstFiles.SelectedIndices[i]].ToString();
-                        DeleteFileFromDb(fileName);
+                        var item = lstFiles.Items[index] as FileListItem;
+                        if (item != null)
+                            itemsToRemove.Add(item);
                     }
+
+                    // DB 삭제 실행
+                    foreach (var item in itemsToRemove)
+                    {
+                        DeleteFileFromDb(item.FileName);
+                    }
+
+                    // 목록 새로고침
                     LoadVectorsFromDb();
                 }
             }
@@ -435,24 +485,29 @@ Contents = excluded.Contents;";
 
                     string fileName = Path.GetFileName(filePath);
 
-                    // 1. 이미 DB에 있거나, 현재 메모리 리스트에 있는 파일인지 확인
-                    // (DB 저장을 안 했더라도 메모리에 있으면 중복 처리 방지)
-                    if (IsFileProcessed(fileName) || lstFiles.Items.Contains(fileName))
+                    // 1. 중복 확인 로직 수정 (FileListItem 호환)
+                    bool isDuplicate = false;
+                    if (IsFileProcessed(fileName)) isDuplicate = true;
+                    else
                     {
-                        // 단, DB에 없고 메모리에만 있는데 'DB 저장'을 체크했다면 저장을 수행해야 할 수도 있음.
-                        // 여기서는 단순하게 "이미 처리된 파일명은 건너뜀"으로 유지합니다.
-                        continue;
+                        foreach (var item in lstFiles.Items)
+                        {
+                            if (item is FileListItem fli && fli.FileName == fileName)
+                            {
+                                isDuplicate = true;
+                                break;
+                            }
+                        }
                     }
+
+                    if (isDuplicate) continue;
 
                     string content = File.ReadAllText(filePath);
                     int chunkSize = 500;
                     int overlap = 50;
 
-                    // UI 리스트에 파일명 추가
-                    if (!lstFiles.Items.Contains(fileName))
-                    {
-                        lstFiles.Items.Add(fileName);
-                    }
+                    // UI 리스트에 파일명 추가 (FileListItem 사용)
+                    lstFiles.Items.Add(new FileListItem { FileName = fileName, DisplayText = fileName });
 
                     for (int i = 0; i < content.Length; i += (chunkSize - overlap))
                     {
@@ -463,7 +518,6 @@ Contents = excluded.Contents;";
 
                         if (embedding != null)
                         {
-                            // 2. [중요] 메모리(VectorStore)에 즉시 추가 (일회성 사용 보장)
                             _vectorStore.Add(new VectorData
                             {
                                 FileName = fileName,
@@ -471,7 +525,6 @@ Contents = excluded.Contents;";
                                 Vector = embedding
                             });
 
-                            // 3. 체크박스가 체크된 경우에만 DB에 영구 저장
                             if (chkSaveDB.Checked)
                             {
                                 SaveVectorToDb(fileName, chunkText, embedding);
@@ -496,6 +549,24 @@ Contents = excluded.Contents;";
             public string Desc { get; set; } // 설명
         }
 
+        // [Helper] 해당 노드의 최상위(Root) 노드를 찾는 메서드
+        private SnippetNode GetRootNode(Dictionary<int, SnippetNode> map, int currentId)
+        {
+            if (!map.ContainsKey(currentId)) return null;
+
+            var currentNode = map[currentId];
+            int safetyLoop = 0;
+
+            // ParentId가 0이거나 자기 자신일 때까지 상위로 이동
+            while (currentNode.ParentId != 0 && currentNode.ParentId != currentNode.Id && map.ContainsKey(currentNode.ParentId))
+            {
+                currentNode = map[currentNode.ParentId];
+                if (safetyLoop++ > 100) break; // 무한루프 방지
+            }
+
+            return currentNode;
+        }
+
         private async Task ImportSnippetsFromDbAsync()
         {
             lblStatus.Text = "업무 메모 분석 및 가져오는 중...";
@@ -508,14 +579,14 @@ Contents = excluded.Contents;";
             try
             {
                 // 1. 전체 데이터를 메모리에 로드 (계층 구조 추적용)
-                // Key: ID, Value: Node 정보
                 Dictionary<int, SnippetNode> nodeMap = new Dictionary<int, SnippetNode>();
 
                 string sourceConnString = DB_CONNECTION_STRING;
                 using (var sourceConn = new SQLiteConnection(sourceConnString))
                 {
                     sourceConn.Open();
-                    string sql = "SELECT ID, PARENTID, CODE, CODEDESC FROM codesnippet WHERE CODEDESC IS NOT NULL";
+                    // 하이라키 구성을 위해 전체 조회
+                    string sql = "SELECT ID, PARENTID, CODE, CODEDESC FROM codesnippet";
                     using (var cmd = new SQLiteCommand(sql, sourceConn))
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -540,7 +611,7 @@ Contents = excluded.Contents;";
                     return;
                 }
 
-                lblStatus.Text = $"총 {nodeMap.Count}건 동기화 시작...";
+                lblStatus.Text = $"총 {nodeMap.Count}건 로드됨. '조선' 관련 데이터 동기화 시작...";
 
                 // 2. 로컬 DB(Target) 연결
                 using (var targetConn = new SQLiteConnection(DB_CONNECTION_STRING))
@@ -549,29 +620,33 @@ Contents = excluded.Contents;";
 
                     foreach (var node in nodeMap.Values)
                     {
-                        // A. 계층 경로(Breadcrumb) 생성 로직
-                        // 예: "HiAps 탑재 > 탑재 네트웍 > 특정 노드..."
+                        // [조건 1] 내용(CODEDESC)이 없으면 제외 (기존 요청사항)
+                        if (string.IsNullOrWhiteSpace(node.Desc))
+                            continue;
+
+                        // [조건 2 - 신규] 최상위(Root) 대분류가 "조선"인지 확인
+                        var rootNode = GetRootNode(nodeMap, node.Id);
+                        if (rootNode == null || rootNode.Code != "조선")
+                            continue;
+
+                        // A. 계층 경로(Breadcrumb) 생성
                         string categoryPath = GetCategoryPath(nodeMap, node.Id);
 
-                        // B. 검색용 텍스트 조합 (분류 정보 포함)
+                        // B. 검색용 텍스트 조합
                         StringBuilder sb = new StringBuilder();
                         if (!string.IsNullOrWhiteSpace(categoryPath))
                         {
                             sb.AppendLine($"[분류] {categoryPath}");
                         }
                         sb.AppendLine($"[제목] {node.Code}");
-                        if (!string.IsNullOrWhiteSpace(node.Desc))
-                        {
-                            sb.AppendLine($"[설명] {node.Desc}");
-                        }
+                        sb.AppendLine($"[설명] {node.Desc}");
 
                         string fullText = sb.ToString().Trim();
                         if (string.IsNullOrWhiteSpace(fullText)) continue;
 
-                        // 텍스트 길이 제한
                         if (fullText.Length > 2000) fullText = fullText.Substring(0, 2000);
 
-                        // C. DB 저장 로직 (기존과 동일: 변경된 것만 업데이트)
+                        // C. DB 저장 로직 (업서트)
                         string uniqueKey = $"SNIPPET_{node.Id}_{node.ParentId}";
                         string existingText = null;
                         bool exists = false;
@@ -587,7 +662,7 @@ Contents = excluded.Contents;";
 
                         if (exists)
                         {
-                            if (existingText != fullText) // 분류 경로가 바뀌었거나 내용이 바뀌었으면 업데이트
+                            if (existingText != fullText)
                             {
                                 var embedding = await GetEmbeddingAsync(fullText);
                                 if (embedding != null)
@@ -622,14 +697,14 @@ Contents = excluded.Contents;";
 
                         if ((insertCount + updateCount + skipCount) % 10 == 0)
                         {
-                            lblStatus.Text = $"처리 중... ({insertCount + updateCount + skipCount}/{nodeMap.Count})";
+                            lblStatus.Text = $"처리 중... (S:{skipCount} / I:{insertCount} / U:{updateCount})";
                             Application.DoEvents();
                         }
                     }
                 }
 
                 LoadVectorsFromDb();
-                MessageBox.Show($"동기화 완료!\n- 신규: {insertCount}\n- 수정: {updateCount}\n- 유지: {skipCount}");
+                MessageBox.Show($"'조선' 대분류 동기화 완료!\n- 신규: {insertCount}\n- 수정: {updateCount}\n- 유지: {skipCount}");
             }
             catch (Exception ex)
             {
@@ -807,6 +882,8 @@ Answer strictly in Professional Korean.";
                     _chatHistory.Add(new { role = "assistant", content = result.ResponseText });
                     PrintChatMessage("AI", result.ResponseText);
                     PrintTokenUsage(result.PromptEvalCount, result.EvalCount);
+
+                    PrintGenerationInfo(result);
                 }
                 else
                 {
@@ -826,6 +903,88 @@ Answer strictly in Professional Korean.";
                 this.Cursor = Cursors.Default;
             }
         }
+
+
+        /// <summary>
+        /// 실제 API로 전송된 JSON 데이터를 파싱하여 표시합니다. (무결성 검증용)
+        /// </summary>
+        private void PrintGenerationInfo(OllamaResponse result)
+        {
+            if (txtResultInfo == null || result == null) return;
+            if (string.IsNullOrEmpty(result.RequestBody)) return;
+
+            txtResultInfo.Document.BeginUpdate();
+            try
+            {
+                txtResultInfo.Document.Text = "";
+                Document doc = txtResultInfo.Document;
+
+                // 헤더
+                doc.AppendText("[Actual Request Data (검증됨)]\n");
+                doc.AppendText("※ 아래 정보는 실제 서버로 전송된 JSON 패킷에서 추출했습니다.\n\n");
+
+                // JSON 파싱
+                using (JsonDocument requestDoc = JsonDocument.Parse(result.RequestBody))
+                {
+                    var root = requestDoc.RootElement;
+
+                    // 1. 모델 확인
+                    if (root.TryGetProperty("model", out var model))
+                        doc.AppendText($"• Used Model: {model.GetString()}\n");
+
+                    // 2. 옵션 확인 (Temperature, Num_ctx)
+                    if (root.TryGetProperty("options", out var options))
+                    {
+                        if (options.TryGetProperty("temperature", out var temp))
+                            doc.AppendText($"• Temperature: {temp.GetDouble()}\n");
+
+                        if (options.TryGetProperty("num_ctx", out var numCtx))
+                            doc.AppendText($"• Context Limit: {numCtx.GetInt32()}\n");
+                    }
+                    else
+                    {
+                        doc.AppendText("• Options: (Not Sent / Default)\n");
+                    }
+
+                    // 3. 실제 전송된 시스템 프롬프트 추출
+                    if (root.TryGetProperty("messages", out var messages) && messages.ValueKind == JsonValueKind.Array)
+                    {
+                        bool systemFound = false;
+                        foreach (var msg in messages.EnumerateArray())
+                        {
+                            if (msg.TryGetProperty("role", out var role) && role.GetString() == "system")
+                            {
+                                if (msg.TryGetProperty("content", out var content))
+                                {
+                                    doc.AppendText($"\n[Used System Prompt]\n{content.GetString()}\n");
+                                    systemFound = true;
+                                }
+                            }
+                        }
+                        if (!systemFound) doc.AppendText("\n[Used System Prompt]\n(시스템 프롬프트가 전송되지 않았습니다)\n");
+                    }
+                }
+
+                // 4. 토큰 사용량 (이건 응답에서 온 정보)
+                if (result.IsSuccess)
+                {
+                    int total = result.PromptEvalCount + result.EvalCount;
+                    doc.AppendText($"\n[Actual Token Usage]\n");
+                    doc.AppendText($"• Prompt: {result.PromptEvalCount}\n");
+                    doc.AppendText($"• Response: {result.EvalCount}\n");
+                    doc.AppendText($"• Total: {total}\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                txtResultInfo.Document.AppendText($"\n[Error] 정보 파싱 실패: {ex.Message}");
+            }
+            finally
+            {
+                txtResultInfo.Document.EndUpdate();
+            }
+        }
+
 
         private void PrintUserMessage(string message, bool hasReference)
         {
@@ -966,11 +1125,16 @@ Answer strictly in Professional Korean.";
         {
             try
             {
+                // 여기서 만들어진 'json'이 실제 서버로 날아가는 데이터입니다.
                 string json = JsonSerializer.Serialize(requestData, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await client.PostAsync(url, content);
                 string body = await response.Content.ReadAsStringAsync();
-                if (!response.IsSuccessStatusCode) return new OllamaResponse { IsSuccess = false, ResponseText = body };
+
+                // 실패 시에도 어떤 데이터를 보냈는지 확인하기 위해 RequestBody 포함
+                if (!response.IsSuccessStatusCode)
+                    return new OllamaResponse { IsSuccess = false, ResponseText = body, RequestBody = json };
 
                 using (JsonDocument doc = JsonDocument.Parse(body))
                 {
@@ -979,7 +1143,16 @@ Answer strictly in Professional Korean.";
                     if (root.TryGetProperty("message", out var msg) && msg.TryGetProperty("content", out var cnt)) text = cnt.GetString();
                     int pEval = root.TryGetProperty("prompt_eval_count", out JsonElement pec) ? pec.GetInt32() : 0;
                     int eval = root.TryGetProperty("eval_count", out JsonElement ec) ? ec.GetInt32() : 0;
-                    return new OllamaResponse { IsSuccess = true, ResponseText = text, PromptEvalCount = pEval, EvalCount = eval };
+
+                    // [수정] RequestBody에 실제 전송했던 json을 담아서 반환
+                    return new OllamaResponse
+                    {
+                        IsSuccess = true,
+                        ResponseText = text,
+                        PromptEvalCount = pEval,
+                        EvalCount = eval,
+                        RequestBody = json // <--- 여기에 실제 전송 데이터 저장
+                    };
                 }
             }
             catch (Exception ex) { return new OllamaResponse { IsSuccess = false, ResponseText = ex.Message }; }
@@ -1170,7 +1343,7 @@ Answer strictly in Professional Korean.";
                         }
                     }
                     cboModelList.Properties.Items.EndUpdate();
-                    if (cboModelList.Properties.Items.Count > 0) cboModelList.SelectedIndex = 0;
+                    //if (cboModelList.Properties.Items.Count > 0) cboModelList.SelectedIndex = 0;
                 }
             }
             catch { }
@@ -1294,6 +1467,8 @@ Answer strictly in Professional Korean.";
             public string ResponseText { get; set; }
             public int PromptEvalCount { get; set; }
             public int EvalCount { get; set; }
+
+            public string RequestBody { get; set; }
         }
 
         private class DefaultSetting
@@ -1325,7 +1500,7 @@ Answer strictly in Professional Korean.";
                     txtSystemPrompt.Document.Text = tmp.First().Contents;
             }
 
-            SaveDefaultSetting();
+            //SaveDefaultSetting();
         }
 
         private void btnSaveSysPrpt_Click(object sender, EventArgs e)
@@ -1344,7 +1519,73 @@ Answer strictly in Professional Korean.";
         {
             SaveDefaultSetting();
         }
+
+        private void lstFiles_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (lstFiles.SelectedIndex == -1) return;
+
+            // 1. 선택된 파일명 식별 (FileListItem 객체인지 문자열인지 확인)
+            string selectedFileName = "";
+            var selectedItem = lstFiles.SelectedItem;
+
+            if (selectedItem == null) return;
+
+            if (selectedItem is FileListItem fli)
+            {
+                selectedFileName = fli.FileName; // 실제 키값(파일명) 사용
+            }
+            else
+            {
+                selectedFileName = selectedItem.ToString();
+            }
+
+            // 2. 해당 파일명에 해당하는 모든 청크 데이터 수집
+            var chunks = _vectorStore.Where(v => v.FileName == selectedFileName).ToList();
+
+            // 3. 내용 표시
+            txtAttFile.BeginUpdate();
+            try
+            {
+                txtAttFile.Document.Text = ""; // 기존 내용 초기화 (중복 방지)
+
+                if (chunks.Count > 0)
+                {
+                    // 헤더 정보
+                    txtAttFile.Document.AppendText($"[File Info]\nName: {selectedFileName}\nTotal Chunks: {chunks.Count}\n");
+                    txtAttFile.Document.AppendText(new string('=', 50) + "\n\n");
+
+                    // 각 청크 내용 출력
+                    for (int i = 0; i < chunks.Count; i++)
+                    {
+                        txtAttFile.Document.AppendText($"--- Chunk #{i + 1} ---\n");
+                        txtAttFile.Document.AppendText(chunks[i].TextChunk);
+                        txtAttFile.Document.AppendText("\n\n");
+                    }
+                }
+                else
+                {
+                    txtAttFile.Document.AppendText("메모리에 로드된 데이터가 없습니다.");
+                }
+            }
+            finally
+            {
+                txtAttFile.EndUpdate();
+            }
+        }
+
+
+        private class FileListItem
+        {
+            public string FileName { get; set; }
+            public string DisplayText { get; set; }
+
+            public override string ToString()
+            {
+                return DisplayText; // 리스트박스에는 이 값이 표시됨
+            }
+        }
     }
+
 
     public class OllamaModelList
     {
@@ -1362,7 +1603,6 @@ Answer strictly in Professional Korean.";
     {
         [JsonPropertyName("embedding")]
         public double[] Embedding { get; set; }
-
     }
 
     public class VectorData
