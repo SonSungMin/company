@@ -39,8 +39,6 @@ namespace DevTools.UI.Control
         private const string EMBEDDING_MODEL = "nomic-embed-text";
         private string DB_CONNECTION_STRING = SQLiteExt.ConnString;
 
-        private int _currentMaxToken = 8192;
-
         // GPU 모니터링
         private Timer _gpuTimer;
         private PerformanceCounter _gpuUsageCounter;
@@ -136,6 +134,8 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     Model TEXT NOT NULL,
     SystemPrompt TEXT NOT NULL,
+    Temperature TEXT,
+    Num_ctx TEXT,
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 );
                     ";
@@ -157,14 +157,16 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
                 using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
                 {
                     conn.Open();
-                    string sql = "SELECT Model, SystemPrompt FROM DefaultSetting ORDER BY CreatedAt DESC LIMIT 1";
+                    string sql = "SELECT Model, SystemPrompt, Temperature, Num_ctx FROM DefaultSetting ORDER BY CreatedAt DESC LIMIT 1";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     using (var reader = cmd.ExecuteReader())
                     {
                         if (reader.Read())
                         {
-                            cboSystemPrpt.EditValue = reader["SystemPrompt"].ToString();
-                            cboModelList.EditValue = reader["Model"].ToString();
+                            cboSystemPrpt.EditValue = reader["SystemPrompt"];
+                            cboModelList.EditValue = reader["Model"];
+                            txtTemp.EditValue = reader["Temperature"];
+                            txtNum_ctx.EditValue = reader["Num_ctx"];
                         }
                     }
                 }
@@ -180,16 +182,20 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
             using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
             {
                 conn.Open();
-                string sql = @"INSERT INTO DefaultSetting (id, Model, SystemPrompt)
-VALUES (1, @model, @systemPrompt)
+                string sql = @"INSERT INTO DefaultSetting (id, Model, SystemPrompt, Temperature, Num_ctx)
+VALUES (1, @model, @systemPrompt, @temperature, @num_ctx)
 ON CONFLICT(id) DO UPDATE SET
 Model = excluded.Model,
-SystemPrompt = excluded.SystemPrompt;";
+SystemPrompt = excluded.SystemPrompt,
+Temperature = excluded.Temperature,
+Num_ctx = excluded.Num_ctx;";
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@model", cboModelList.EditValue != null ? cboModelList.EditValue.ToString() : "");
                     cmd.Parameters.AddWithValue("@systemPrompt", cboSystemPrpt.EditValue != null ? cboSystemPrpt.EditValue.ToString() : "");
+                    cmd.Parameters.AddWithValue("@temperature", txtTemp.EditValue != null ? txtTemp.Text : "");
+                    cmd.Parameters.AddWithValue("@num_ctx", txtNum_ctx.EditValue != null ? txtNum_ctx.Text : "");
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -897,6 +903,36 @@ Answer strictly in Professional Korean.";
             return dot / (Math.Sqrt(magA) * Math.Sqrt(magB));
         }
 
+        double Temperature
+        {
+            get
+            {
+                double temp = 0.4;
+
+                if (double.TryParse(txtTemp.Text, out double temp_1))
+                {
+                    temp = temp_1;
+                }
+
+                return temp;
+            }
+        }
+
+        double Num_ctx
+        {
+            get
+            {
+                double numCtx = 8192;
+
+                if (double.TryParse(txtNum_ctx.Text, out double num_ctx_1))
+                {
+                    numCtx = num_ctx_1;
+                }
+
+                return numCtx;
+            }
+        }
+
         private async Task<OllamaResponse> CallOllamaHistoryAsync(string modelName, List<object> historyMessages)
         {
             var requestData = new
@@ -904,7 +940,7 @@ Answer strictly in Professional Korean.";
                 model = modelName,
                 messages = historyMessages,
                 stream = false,
-                options = new { num_ctx = _currentMaxToken, temperature = 0.6 }
+                options = new { num_ctx = Num_ctx, temperature = Temperature }
             };
             return await SendOllamaRequest(CHAT_URL, requestData);
         }
@@ -914,7 +950,15 @@ Answer strictly in Professional Korean.";
             var messages = new List<object>();
             if (!string.IsNullOrWhiteSpace(systemPrompt)) messages.Add(new { role = "system", content = systemPrompt });
             messages.Add(new { role = "user", content = userPrompt, images = base64Image != null ? new[] { base64Image } : null });
-            var requestData = new { model = modelName, messages = messages, stream = false };
+            
+            var requestData = new 
+            { 
+                model = modelName, 
+                messages = messages, 
+                stream = false ,
+                options = new { num_ctx = Num_ctx, temperature = Temperature }
+            };
+
             return await SendOllamaRequest(CHAT_URL, requestData);
         }
 
@@ -995,31 +1039,102 @@ Answer strictly in Professional Korean.";
             CharacterProperties cp = doc.BeginUpdateCharacters(range);
             cp.Bold = true;
             if (role == "User") cp.ForeColor = Color.Blue;
-            else if (role == "AI") cp.ForeColor = Color.Green; // Role은 초록색 유지
+            else if (role == "AI") cp.ForeColor = Color.Green;
             else if (role == "Error") cp.ForeColor = Color.Red;
             else cp.ForeColor = Color.Black;
             doc.EndUpdateCharacters(cp);
 
-            // 2. 본문 메시지 표시 (색상 문제 해결: 검정색으로 강제 설정)
-            DocumentRange msgRange = doc.AppendText($"\r\n{msg}\r\n");
-            CharacterProperties cpMsg = doc.BeginUpdateCharacters(msgRange);
-            cpMsg.ForeColor = Color.Black; // [핵심] 본문은 무조건 잘 보이게 검정색
-            cpMsg.Bold = false;            // 볼드 해제
-            doc.EndUpdateCharacters(cpMsg);
+            // 줄바꿈
+            doc.AppendText("\r\n");
+
+            // 2. 본문 메시지 표시 (마크다운 포맷팅 적용)
+            // 기존: 단순 텍스트 추가 -> 변경: 마크다운 파싱 함수 호출
+            AppendMarkdownFormatted(doc, msg);
 
             // 스크롤 이동
             txtResult.Document.CaretPosition = txtResult.Document.CreatePosition(txtResult.Document.Range.End.ToInt());
             txtResult.ScrollToCaret();
         }
 
+        /// <summary>
+        /// 마크다운 텍스트를 파싱하여 RichEditControl에 서식과 함께 추가합니다.
+        /// (코드 블록 감지 및 스타일링)
+        /// </summary>
+        private void AppendMarkdownFormatted(Document doc, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+
+            // ``` 를 기준으로 텍스트 분리
+            // 짝수 인덱스: 일반 텍스트, 홀수 인덱스: 코드 블록
+            string[] segments = text.Split(new string[] { "```" }, StringSplitOptions.None);
+
+            for (int i = 0; i < segments.Length; i++)
+            {
+                string segment = segments[i];
+                if (string.IsNullOrEmpty(segment)) continue;
+
+                if (i % 2 == 0)
+                {
+                    // [일반 텍스트]
+                    DocumentRange range = doc.AppendText(segment);
+                    CharacterProperties cp = doc.BeginUpdateCharacters(range);
+                    cp.FontName = "맑은 고딕";
+                    cp.FontSize = 10;
+                    cp.ForeColor = Color.Black;
+                    cp.BackColor = Color.Transparent;
+                    doc.EndUpdateCharacters(cp);
+                }
+                else
+                {
+                    // [코드 블록]
+                    string codeContent = segment;
+
+                    // 첫 줄의 언어 식별자(예: csharp, python) 제거 로직
+                    int firstLineBreak = segment.IndexOfAny(new char[] { '\r', '\n' });
+                    if (firstLineBreak >= 0)
+                    {
+                        string firstLine = segment.Substring(0, firstLineBreak).Trim();
+                        // 언어 태그로 추정되면(공백없고 짧음) 제거
+                        if (firstLine.Length > 0 && firstLine.Length < 20 && !firstLine.Contains(" "))
+                        {
+                            codeContent = segment.Substring(firstLineBreak).TrimStart();
+                        }
+                    }
+
+                    // 코드 블록 위아래로 약간의 여백 추가
+                    doc.AppendText("\r\n");
+
+                    DocumentRange range = doc.AppendText(codeContent);
+
+                    // 1. 글자 스타일 (Consolas, 진한 파랑, 연회색 배경)
+                    CharacterProperties cp = doc.BeginUpdateCharacters(range);
+                    cp.FontName = "Consolas";
+                    cp.FontSize = 9;
+                    cp.ForeColor = Color.FromArgb(0, 0, 139); // DarkBlue
+                    cp.BackColor = Color.FromArgb(240, 240, 240); // 연한 회색 배경
+                    doc.EndUpdateCharacters(cp);
+
+                    // 2. 문단 스타일 (들여쓰기 적용)
+                    ParagraphProperties pp = doc.BeginUpdateParagraphs(range);
+                    pp.LeftIndent = 20; // 20 픽셀 들여쓰기
+                    pp.RightIndent = 20;
+                    doc.EndUpdateParagraphs(pp);
+
+                    doc.AppendText("\r\n");
+                }
+            }
+        }
+
         // [복구됨] 토큰 사용량 표시
         private void PrintTokenUsage(int promptTokens, int responseTokens)
         {
-            int totalUsed = promptTokens + responseTokens;
-            int remaining = _currentMaxToken - totalUsed;
-            double usagePercent = (double)totalUsed / _currentMaxToken * 100;
+            int currentMaxToken = (int)Num_ctx;
 
-            string tokenInfo = $"[Token Usage] Used: {totalUsed} / {_currentMaxToken} ({usagePercent:F1}%) | Remaining: {remaining}";
+            int totalUsed = promptTokens + responseTokens;
+            int remaining = currentMaxToken - totalUsed;
+            double usagePercent = (double)totalUsed / currentMaxToken * 100;
+
+            string tokenInfo = $"[Token Usage] Used: {totalUsed} / {currentMaxToken} ({usagePercent:F1}%) | Remaining: {remaining}";
 
             Document doc = txtResult.Document;
             doc.AppendText("\r\n");
@@ -1066,17 +1181,17 @@ Answer strictly in Professional Korean.";
             if (_isLoading) 
                 return;
 
-            if (cboModelList.EditValue != null)
-            {
-                string selected = cboModelList.EditValue.ToString().ToLower();
-                BRAIN_MODEL = selected;
-                int newLimit = 8192;
-                foreach (var kvp in _modelTokenLimits)
-                {
-                    if (selected.Contains(kvp.Key)) { newLimit = kvp.Value; break; }
-                }
-                _currentMaxToken = newLimit;
-            }
+            //if (cboModelList.EditValue != null)
+            //{
+            //    string selected = cboModelList.EditValue.ToString().ToLower();
+            //    BRAIN_MODEL = selected;
+            //    int newLimit = 8192;
+            //    foreach (var kvp in _modelTokenLimits)
+            //    {
+            //        if (selected.Contains(kvp.Key)) { newLimit = kvp.Value; break; }
+            //    }
+            //    _currentMaxToken = newLimit;
+            //}
 
             SaveDefaultSetting();
         }
@@ -1219,6 +1334,16 @@ Answer strictly in Professional Korean.";
 
             SaveDefaultSetting();
         }
+
+        private void txtTemp_EditValueChanged(object sender, EventArgs e)
+        {
+            SaveDefaultSetting();
+        }
+
+        private void txtNum_ctx_EditValueChanged(object sender, EventArgs e)
+        {
+            SaveDefaultSetting();
+        }
     }
 
     public class OllamaModelList
@@ -1237,6 +1362,7 @@ Answer strictly in Professional Korean.";
     {
         [JsonPropertyName("embedding")]
         public double[] Embedding { get; set; }
+
     }
 
     public class VectorData
