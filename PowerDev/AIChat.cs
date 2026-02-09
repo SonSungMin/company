@@ -515,7 +515,7 @@ Contents = excluded.Contents;";
                 using (var sourceConn = new SQLiteConnection(sourceConnString))
                 {
                     sourceConn.Open();
-                    string sql = "SELECT ID, PARENTID, CODE, CODEDESC FROM codesnippet";
+                    string sql = "SELECT ID, PARENTID, CODE, CODEDESC FROM codesnippet WHERE CODEDESC IS NOT NULL";
                     using (var cmd = new SQLiteCommand(sql, sourceConn))
                     using (var reader = cmd.ExecuteReader())
                     {
