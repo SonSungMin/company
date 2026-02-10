@@ -17,9 +17,11 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Services.Description;
 using System.Windows.Forms;
+using Timer = System.Windows.Forms.Timer;
 
 namespace DevTools.UI.Control
 {
@@ -53,6 +55,8 @@ namespace DevTools.UI.Control
         private List<VectorData> _vectorStore = new List<VectorData>();
         private static readonly HttpClient client = new HttpClient();
         private List<object> _chatHistory = new List<object>();
+
+        private CancellationTokenSource _cts;
 
         // ─────────────────────────────────────────────────────────────
         // 2. 초기화 (생성자)
@@ -613,7 +617,6 @@ Num_ctx = excluded.Num_ctx;";
                         // A. 계층 경로(Breadcrumb) 생성
                         string categoryPath = GetCategoryPath(nodeMap, node.Id);
 
-
                         // B. 검색용 텍스트 조합
                         StringBuilder sb = new StringBuilder();
                         if (!string.IsNullOrWhiteSpace(categoryPath))
@@ -732,12 +735,96 @@ Num_ctx = excluded.Num_ctx;";
         // ─────────────────────────────────────────────────────────────
         // 5. 메인 로직 (채팅 및 분석)
         // ─────────────────────────────────────────────────────────────
-        private async void BtnAnalyze_Click(object sender, EventArgs e)
+        /// <summary>
+        /// 사용자의 질문 의도를 파악합니다. (CHAT: 일반 대화 / SEARCH: 지식 검색 필요)
+        /// </summary>
+        private async Task<bool> IsSearchRequiredAsync(string userPrompt, CancellationToken token = default)
         {
+            // 1. 질문이 너무 짧으면(5자 미만) AI 호출 없이 바로 일반 대화로 처리 (속도 최적화)
+            if (userPrompt.Length < 5) return false;
+
+            // 2. 분류를 위한 가벼운 시스템 프롬프트
+            string routerSystemPrompt = @"
+Classify the user's input into 'CHAT' or 'SEARCH'.
+- 'CHAT': Greetings, self-introductions, jokes, compliments, or general conversation.
+- 'SEARCH': Technical questions, asking for definitions, requesting code, or questions about the company/project.
+Output ONLY one word: CHAT or SEARCH.";
+
+            // 3. 요청 데이터 생성
+            // 의도 파악은 창의성이 필요 없으므로 Temperature 0
+            // 응답 토큰도 10개면 충분함 (속도 향상)
+            var requestData = new
+            {
+                model = BRAIN_MODEL, // 또는 더 가벼운 모델(gemma:2b 등) 사용 권장
+                messages = new[] {
+                    new { role = "system", content = routerSystemPrompt },
+                    new { role = "user", content = userPrompt }
+                },
+                stream = false,
+                options = new { temperature = 0, num_predict = 10 }
+            };
+
             try
             {
+                // 여기서 토큰(token)을 넘겨주어야 취소 버튼 클릭 시 중단됨
+                var response = await SendOllamaRequest(CHAT_URL, requestData, token);
+
+                if (response.IsSuccess)
+                {
+                    string intent = response.ResponseText.Trim().ToUpper();
+                    Debug.WriteLine($"[Intent Router] Input: {userPrompt} / Intent: {intent}");
+
+                    // 'SEARCH'라고 명확히 답한 경우에만 RAG 검색 수행
+                    return intent.Contains("SEARCH");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // 취소 시 상위로 예외 전파 (그래야 '취소됨' 메시지가 뜸)
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // 그 외 에러(네트워크 등) 발생 시 안전하게 검색 수행(True)으로 처리
+                Debug.WriteLine($"[Router Error] {ex.Message}");
+            }
+
+            return true;
+        }
+
+        private async void BtnAnalyze_Click(object sender, EventArgs e)
+        {
+            // ─────────────────────────────────────────────────────────────
+            // [수정] 취소(Stop) 로직 구현
+            // ─────────────────────────────────────────────────────────────
+            // 이미 실행 중이라면 취소 요청 후 종료
+            if (_cts != null)
+            {
+                _cts.Cancel();
+                _cts.Dispose();
+                _cts = null;
+
+                if (mproAiThink != null) 
+                    mproAiThink.Properties.Stopped = true;
+
+                layAiThink.Visibility = DevExpress.XtraLayout.Utils.LayoutVisibility.Never;
+
+                return;
+            }
+
+            // 새로운 작업 시작을 위한 토큰 생성
+            _cts = new CancellationTokenSource();
+            var token = _cts.Token;
+
+            try
+            {
+                // [UI 변경] 분석 중에는 버튼을 '중단' 버튼으로 변경
+                // (아이콘이나 텍스트를 변경하여 사용자에게 알림)
+                btnAnalyze.Text = "중단";
+                btnAnalyze.ImageOptions.Image = imgStopStart.Images[0];
                 this.Cursor = Cursors.WaitCursor;
-                btnAnalyze.Enabled = false;
+
+                // 기존의 btnAnalyze.Enabled = false; 는 삭제 (클릭해야 하므로)
 
                 if (mproAiThink != null)
                 {
@@ -756,119 +843,137 @@ Num_ctx = excluded.Num_ctx;";
                     return;
                 }
 
-                // 시스템 프롬프트 설정
+                // 2. 시스템 프롬프트 초기화 (기존 코드와 동일)
+                string strictSystemPrompt = @"You are an expert Senior Full Stack Engineer.
+Answer based strictly on the provided context.
+- If the answer is not in the context, say you don't know.
+- Answer in Professional Korean.";
+
+                string generalSystemPrompt = @"You are a helpful AI assistant.
+Answer the user's question freely and naturally.
+- For technical questions, provide expert advice.
+- For greetings or general talk, respond appropriately.
+- Answer in Professional Korean.";
+
                 if (_chatHistory.Count == 0)
                 {
-                    string systemPrompt = chkUsePrompt.Checked ? txtSystemPrompt.Text : "";
-                    if (string.IsNullOrWhiteSpace(systemPrompt))
-                    {
-                        systemPrompt = @"You are an expert Senior Full Stack Engineer. 
-Prioritize the [Reference Context] for answers. 
-Answer strictly in Professional Korean.";
-                    }
-                    _chatHistory.Add(new { role = "system", content = systemPrompt });
-
+                    _chatHistory.Add(new { role = "system", content = generalSystemPrompt });
                     PrintChatMessage("System", $"대화를 시작합니다. (Total Knowledge: {_vectorStore.Count} Chunks)");
                 }
 
-                // 2. [RAG 하이브리드 검색] (ABAP 필터링 제거됨 & 정확도 로직 개선)
+                // 3. 의도 파악 (토큰 전달)
+                bool isSearchNeeded = false;
+                if (!string.IsNullOrEmpty(base64Image))
+                {
+                    isSearchNeeded = true;
+                }
+                else
+                {
+                    lblStatus.Text = "질문 의도 파악 중...";
+                    // [변경] 토큰 전달
+                    isSearchNeeded = await IsSearchRequiredAsync(userPrompt, token);
+                }
+
+                // 4. RAG 검색 (토큰 전달)
                 string retrievedContext = "";
-                if (_vectorStore.Count > 0 && !string.IsNullOrWhiteSpace(userPrompt))
+                string finalUserMessage = userPrompt;
+                bool isContextFound = false;
+
+                if (isSearchNeeded && _vectorStore.Count > 0)
                 {
                     lblStatus.Text = "지식베이스 검색 중...";
-                    var queryVector = await GetEmbeddingAsync(userPrompt);
+                    // [변경] 토큰 전달
+                    var queryVector = await GetEmbeddingAsync(userPrompt, token);
 
                     if (queryVector != null)
                     {
-                        // A. 키워드 준비
-                        var queryKeywords = userPrompt.Split(new[] { ' ', '?', '.', ',', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                                                      .Where(w => w.Length >= 2)
-                                                      .ToList();
-
                         var relevantChunks = _vectorStore
-                            .Select(v =>
-                            {
-                                // B. 벡터 유사도
-                                double vectorScore = CosineSimilarity(queryVector, v.Vector);
-
-                                // C. 키워드 보너스 (개선된 로직)
-                                // - 기존: 개당 0.1점, 최대 0.5점
-                                // - 변경: 개당 0.05점, 최대 0.3점 (단순 단어 매칭 영향력 축소)
-                                double keywordBonus = 0;
-                                foreach (var keyword in queryKeywords)
-                                {
-                                    if (v.TextChunk.Contains(keyword)) keywordBonus += 0.05;
-                                }
-                                keywordBonus = Math.Min(keywordBonus, 0.3);
-
-                                // [중요] 벡터 유사도가 너무 낮으면(0.3 미만) 엉뚱한 문서이므로 키워드 보너스 무시
-                                if (vectorScore < 0.3)
-                                {
-                                    keywordBonus = 0;
-                                }
-
-                                // D. 최종 점수 (ABAP 페널티 로직 제거됨)
-                                double finalScore = vectorScore + keywordBonus;
-
-                                return new { Chunk = v, FinalScore = finalScore };
-                            })
-                            // [필터링 임계값 상향] 0.35 -> 0.55
-                            // 관련성이 확실한 문서만 가져오도록 설정
-                            .Where(x => x.FinalScore > 0.55)
-                            .OrderByDescending(x => x.FinalScore)
+                            .Select(v => new { Chunk = v, Score = CosineSimilarity(queryVector, v.Vector) })
+                            .Where(x => x.Score > 0.35)
+                            .OrderByDescending(x => x.Score)
                             .Take(3)
                             .ToList();
 
-                        StringBuilder sb = new StringBuilder();
-                        bool hasRelevant = false;
-                        foreach (var item in relevantChunks)
+                        if (relevantChunks.Count > 0)
                         {
-                            sb.AppendLine($"--- Reference (Score: {item.FinalScore:F2}) ---");
-                            sb.AppendLine(item.Chunk.TextChunk);
-                            sb.AppendLine();
-                            hasRelevant = true;
-                        }
-
-                        if (hasRelevant)
-                        {
+                            isContextFound = true;
+                            StringBuilder sb = new StringBuilder();
+                            foreach (var item in relevantChunks)
+                            {
+                                sb.AppendLine($"<doc score='{item.Score:F2}'>");
+                                sb.AppendLine(item.Chunk.TextChunk);
+                                sb.AppendLine("</doc>");
+                            }
                             retrievedContext = sb.ToString();
-                            // [변경] RAG 데이터가 질문과 무관하면 무시하도록 명시적인 '지침(Instruction)'을 추가합니다.
-                            userPrompt = $"[지식베이스 참고데이터 (관련 없으면 무시할 것)]:\r\n{retrievedContext}\r\n\r\n" +
-                                         $"[사용자 질문]:\r\n{userPrompt}\r\n\r\n" +
-                                         $"(지침: 위 [지식베이스 참고데이터]가 사용자의 질문과 명확히 관련이 없다면 철저히 무시하고, 사용자 질문에만 답변하세요.)";
+
+                            finalUserMessage = $@"
+[Context]:
+{retrievedContext}
+
+[Question]: 
+{userPrompt}
+
+[Instruction]:
+Based on the [Context] above, answer the question.";
                         }
                     }
                 }
 
-                // 3. 이미지 처리
+                // 시스템 프롬프트 교체 (기존 동일)
+                if (_chatHistory.Count > 0)
+                {
+                    if (isContextFound)
+                    {
+                        _chatHistory[0] = new { role = "system", content = strictSystemPrompt };
+                        Debug.WriteLine("[Mode] Strict (RAG Active)");
+                    }
+                    else
+                    {
+                        _chatHistory[0] = new { role = "system", content = generalSystemPrompt };
+                        Debug.WriteLine("[Mode] General (Free Chat)");
+                    }
+                }
+
+                // 5. 이미지 처리 (토큰 전달)
                 if (!string.IsNullOrEmpty(base64Image))
                 {
                     string ocrPrompt = "Extract text from this image.";
-                    var ocrResult = await CallOllamaSingleAsync(EYE_MODEL, null, ocrPrompt, base64Image);
-                    userPrompt = $"[Image Text]:\r\n{ocrResult.ResponseText}\r\n\r\n{userPrompt}";
+                    // [변경] 토큰 전달
+                    var ocrResult = await CallOllamaSingleAsync(EYE_MODEL, null, ocrPrompt, base64Image, token);
+                    finalUserMessage = $"[Image Text]:\r\n{ocrResult.ResponseText}\r\n\r\n{finalUserMessage}";
                 }
 
-                _chatHistory.Add(new { role = "user", content = userPrompt });
-
-                PrintUserMessage(content.Text, !string.IsNullOrEmpty(retrievedContext));
+                // 6. 전송 및 응답 (토큰 전달)
+                PrintUserMessage(userPrompt, isContextFound);
+                _chatHistory.Add(new { role = "user", content = finalUserMessage });
 
                 lblStatus.Text = "답변 생성 중...";
-                var result = await CallOllamaHistoryAsync(BRAIN_MODEL, _chatHistory);
+                // [변경] 토큰 전달
+                var result = await CallOllamaHistoryAsync(BRAIN_MODEL, _chatHistory, token);
 
                 if (result.IsSuccess)
                 {
                     _chatHistory.Add(new { role = "assistant", content = result.ResponseText });
                     PrintChatMessage("AI", result.ResponseText);
                     PrintTokenUsage(result.PromptEvalCount, result.EvalCount);
-
                     PrintGenerationInfo(result);
                 }
                 else
                 {
-                    PrintChatMessage("Error", result.ResponseText);
+                    // 취소된 경우에도 여기로 올 수 있으므로 메시지 확인
+                    if (token.IsCancellationRequested)
+                        PrintChatMessage("System", "작업이 사용자에 의해 취소되었습니다.");
+                    else
+                        PrintChatMessage("Error", result.ResponseText);
                 }
 
                 lblStatus.Text = "완료";
+            }
+            catch (OperationCanceledException)
+            {
+                // 취소 예외 처리
+                PrintChatMessage("System", "작업이 취소되었습니다.");
+                lblStatus.Text = "취소됨";
             }
             catch (Exception ex)
             {
@@ -876,12 +981,22 @@ Answer strictly in Professional Korean.";
             }
             finally
             {
+                // [UI 복구] 버튼 텍스트 및 상태 원복
+                btnAnalyze.Text = "분석"; // 또는 원래 텍스트
+                btnAnalyze.ImageOptions.Image = imgStopStart.Images[1];
+
                 if (mproAiThink != null) mproAiThink.Properties.Stopped = true;
-                btnAnalyze.Enabled = true;
+
                 this.Cursor = Cursors.Default;
+
+                // 토큰 정리
+                if (_cts != null)
+                {
+                    _cts.Dispose();
+                    _cts = null;
+                }
             }
         }
-
 
         /// <summary>
         /// 실제 API로 전송된 JSON 데이터를 파싱하여 표시합니다. (무결성 검증용)
@@ -909,6 +1024,7 @@ Answer strictly in Professional Korean.";
                     // 1. 모델 확인
                     if (root.TryGetProperty("model", out var model))
                         doc.AppendText($"• Used Model: {model.GetString()}\n");
+
 
                     // 2. 옵션 확인 (Temperature, Num_ctx)
                     if (root.TryGetProperty("options", out var options))
@@ -1031,7 +1147,6 @@ Answer strictly in Professional Korean.";
             doc.AppendText("\r\n");
 
             // 2. 참조 알림 표시 (스타일: 작게, 마젠타색)
-
             //if (hasReference)
             //{
             //    DocumentRange refRange = doc.AppendText("★ [업무 메모 참조됨]\r\n");
@@ -1054,8 +1169,10 @@ Answer strictly in Professional Korean.";
         }
 
 
-        private void btnResetChat_Click(object sender, EventArgs e)
+        private async void btnResetChat_Click(object sender, EventArgs e)
         {
+            await UnloadModel();
+
             _chatHistory.Clear();
             txtResult.Text = "";
             PrintChatMessage("System", "대화가 초기화되었습니다.");
@@ -1065,13 +1182,16 @@ Answer strictly in Professional Korean.";
         // 6. 헬퍼 메서드 (API 호출, UI 업데이트 등)
         // ─────────────────────────────────────────────────────────────
 
-        private async Task<double[]> GetEmbeddingAsync(string text)
+        private async Task<double[]> GetEmbeddingAsync(string text, CancellationToken token = default)
         {
             var requestData = new { model = EMBEDDING_MODEL, prompt = text };
             try
             {
                 var content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json");
-                var response = await client.PostAsync(EMBED_URL, content);
+
+                // [수정] 토큰 전달
+                var response = await client.PostAsync(EMBED_URL, content, token);
+
                 if (!response.IsSuccessStatusCode) return null;
                 var body = await response.Content.ReadAsStringAsync();
                 var result = JsonSerializer.Deserialize<OllamaEmbeddingResponse>(body);
@@ -1123,8 +1243,23 @@ Answer strictly in Professional Korean.";
             }
         }
 
-        private async Task<OllamaResponse> CallOllamaHistoryAsync(string modelName, List<object> historyMessages)
+        private async Task<OllamaResponse> CallOllamaHistoryAsync(string modelName, List<object> historyMessages, CancellationToken token = default)
         {
+            // [개선] 슬라이딩 윈도우 로직 (메모리 관리)
+            // 대화 턴이 너무 많으면(예: 20개 초과), 시스템 프롬프트(0번)는 남기고 오래된 대화(1번부터)를 삭제
+            const int MAX_HISTORY_TURNS = 20;
+
+            if (historyMessages.Count > MAX_HISTORY_TURNS)
+            {
+                // 0번(System)은 유지하고, 1번(가장 오래된 User)과 2번(가장 오래된 AI)을 삭제
+                // User-AI 쌍으로 삭제하여 대화 흐름 유지
+                if (historyMessages.Count >= 3)
+                {
+                    historyMessages.RemoveAt(1);
+                    historyMessages.RemoveAt(1);
+                }
+            }
+
             var requestData = new
             {
                 model = modelName,
@@ -1132,10 +1267,10 @@ Answer strictly in Professional Korean.";
                 stream = false,
                 options = new { num_ctx = Num_ctx, temperature = Temperature }
             };
-            return await SendOllamaRequest(CHAT_URL, requestData);
+            return await SendOllamaRequest(CHAT_URL, requestData, token);
         }
 
-        private async Task<OllamaResponse> CallOllamaSingleAsync(string modelName, string systemPrompt, string userPrompt, string base64Image = null)
+        private async Task<OllamaResponse> CallOllamaSingleAsync(string modelName, string systemPrompt, string userPrompt, string base64Image = null, CancellationToken token = default)
         {
             var messages = new List<object>();
             if (!string.IsNullOrWhiteSpace(systemPrompt)) messages.Add(new { role = "system", content = systemPrompt });
@@ -1149,21 +1284,21 @@ Answer strictly in Professional Korean.";
                 options = new { num_ctx = Num_ctx, temperature = Temperature }
             };
 
-            return await SendOllamaRequest(CHAT_URL, requestData);
+            return await SendOllamaRequest(CHAT_URL, requestData, token);
         }
 
-        private async Task<OllamaResponse> SendOllamaRequest(string url, object requestData)
+        private async Task<OllamaResponse> SendOllamaRequest(string url, object requestData, CancellationToken token = default)
         {
             try
             {
-                // 여기서 만들어진 'json'이 실제 서버로 날아가는 데이터입니다.
                 string json = JsonSerializer.Serialize(requestData, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-                var response = await client.PostAsync(url, content);
+
+                // ★ [중요] 여기서 토큰을 사용하여 요청을 즉시 취소할 수 있게 합니다.
+                var response = await client.PostAsync(url, content, token);
+
                 string body = await response.Content.ReadAsStringAsync();
 
-                // 실패 시에도 어떤 데이터를 보냈는지 확인하기 위해 RequestBody 포함
                 if (!response.IsSuccessStatusCode)
                     return new OllamaResponse { IsSuccess = false, ResponseText = body, RequestBody = json };
 
@@ -1175,25 +1310,26 @@ Answer strictly in Professional Korean.";
                     int pEval = root.TryGetProperty("prompt_eval_count", out JsonElement pec) ? pec.GetInt32() : 0;
                     int eval = root.TryGetProperty("eval_count", out JsonElement ec) ? ec.GetInt32() : 0;
 
-                    // [수정] RequestBody에 실제 전송했던 json을 담아서 반환
                     return new OllamaResponse
                     {
                         IsSuccess = true,
                         ResponseText = text,
                         PromptEvalCount = pEval,
                         EvalCount = eval,
-                        RequestBody = json // <--- 여기에 실제 전송 데이터 저장
+                        RequestBody = json
                     };
                 }
             }
+            // 취소 발생 시 상위 메서드로 예외를 던짐
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex) { return new OllamaResponse { IsSuccess = false, ResponseText = ex.Message }; }
         }
 
-        private async Task UnloadModel(string modelName)
+        private async Task UnloadModel()
         {
             try
             {
-                var requestData = new { model = modelName, keep_alive = 0 };
+                var requestData = new { model = BRAIN_MODEL, keep_alive = 0 };
                 var content = new StringContent(JsonSerializer.Serialize(requestData), Encoding.UTF8, "application/json");
                 await client.PostAsync(OLLAMA_URL, content);
             }
@@ -1382,20 +1518,10 @@ Answer strictly in Professional Korean.";
 
         private void cboModelList_EditValueChanged(object sender, EventArgs e)
         {
+            BRAIN_MODEL = cboModelList.EditValue == null ? "" : cboModelList.EditValue.ToString().ToLower();
+
             if (_isLoading) 
                 return;
-
-            //if (cboModelList.EditValue != null)
-            //{
-            //    string selected = cboModelList.EditValue.ToString().ToLower();
-            //    BRAIN_MODEL = selected;
-            //    int newLimit = 8192;
-            //    foreach (var kvp in _modelTokenLimits)
-            //    {
-            //        if (selected.Contains(kvp.Key)) { newLimit = kvp.Value; break; }
-            //    }
-            //    _currentMaxToken = newLimit;
-            //}
 
             SaveDefaultSetting();
         }
@@ -1403,59 +1529,75 @@ Answer strictly in Professional Korean.";
         // ─────────────────────────────────────────────────────────────
         // 7. GPU 모니터링 (Optional)
         // ─────────────────────────────────────────────────────────────
+        // 여러 엔진의 카운터를 동시에 모니터링하기 위한 리스트
+        private List<PerformanceCounter> _gpuLoadCounters = new List<PerformanceCounter>();
+
         private void GpuTimer_Tick(object sender, EventArgs e)
         {
             Task.Run(() =>
             {
-                var info = GetNvidiaGpuInfo();
+                var info = GetPerformanceCounterValues();
+
                 this.BeginInvoke(new Action(() =>
                 {
+                    // 상태 표시 업데이트
                     if (info.MemoryTotal > 0)
                     {
-                        prgGpuUsage.EditValue = info.CoreLoad;
                         prgGpuUsage.Text = $"GPU: {info.CoreLoad}% | VRAM: {info.MemoryUsed}/{info.MemoryTotal} MB";
+                        prgGpuUsage.EditValue = info.CoreLoad;
+                    }
+                    else if (info.CoreLoad > 0)
+                    {
+                        prgGpuUsage.Text = $"GPU: {info.CoreLoad}% | VRAM: {info.MemoryUsed} MB";
+                        prgGpuUsage.EditValue = info.CoreLoad;
                     }
                     else
                     {
-                        prgGpuUsage.Text = "NVIDIA GPU를 찾을 수 없음";
-                        if (_gpuUsageCounter == null) SetupGpuCounters();
+                        prgGpuUsage.Text = "GPU 모니터링 초기화 중...";
+
+                        // 카운터가 없거나 로드가 계속 0이면 재설정 시도 (5초마다 등 제한 필요하지만 간단히 처리)
+                        if (_gpuLoadCounters.Count == 0) SetupGpuCounters();
                     }
                 }));
             });
         }
 
-        private GpuInfo GetNvidiaGpuInfo()
+        private GpuInfo GetPerformanceCounterValues()
         {
             GpuInfo info = new GpuInfo();
             try
             {
-                var process = new Process
+                // 1. GPU 로드율 가져오기 (가장 높은 부하를 사용)
+                // AI 작업은 3D가 아닌 Compute/Cuda 엔진을 사용하므로 여러 엔진 중 최대값을 찾음
+                float maxLoad = 0;
+                foreach (var counter in _gpuLoadCounters)
                 {
-                    StartInfo = new ProcessStartInfo
+                    try
                     {
-                        FileName = "nvidia-smi",
-                        Arguments = "--query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits",
-                        RedirectStandardOutput = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
+                        float val = counter.NextValue();
+                        if (val > maxLoad) maxLoad = val;
                     }
-                };
-
-                process.Start();
-                string output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-
-                var parts = output.Trim().Split(',');
-                if (parts.Length >= 3)
-                {
-                    info.CoreLoad = int.Parse(parts[0].Trim());
-                    info.MemoryUsed = int.Parse(parts[1].Trim());
-                    info.MemoryTotal = int.Parse(parts[2].Trim());
+                    catch { } // 특정 카운터 에러 무시
                 }
+                info.CoreLoad = (int)maxLoad;
+
+                // 2. VRAM 사용량 가져오기
+                if (_vramUsedCounter != null)
+                {
+                    long bytes = (long)_vramUsedCounter.NextValue();
+                    info.MemoryUsed = (int)(bytes / 1024 / 1024);
+                }
+
+                // 3. 전체 VRAM 용량 (최초 1회만 레지스트리로 조회)
+                if (_totalVramMB == 0)
+                {
+                    _totalVramMB = GetTotalVideoMemoryRegistry();
+                }
+                info.MemoryTotal = (int)_totalVramMB;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"nvidia-smi 실행 실패: {ex.Message}");
+                Debug.WriteLine($"카운터 읽기 오류: {ex.Message}");
             }
             return info;
         }
@@ -1464,51 +1606,58 @@ Answer strictly in Professional Korean.";
         {
             try
             {
-                // 사용 가능한 모든 GPU 카운터 출력
+                _gpuLoadCounters.Clear();
                 var category = new PerformanceCounterCategory("GPU Engine");
                 var instanceNames = category.GetInstanceNames();
 
-                Debug.WriteLine("=== 사용 가능한 GPU 인스턴스 ===");
+                // 모니터링할 엔진 키워드: 3D, Compute, Cuda
+                // Ollama/Llama 등 AI는 주로 'Compute_0' 또는 'Cuda' 엔진을 사용함
+                var targetEngines = new[] { "engtype_3D", "engtype_Compute", "engtype_Cuda" };
+
                 foreach (string name in instanceNames)
                 {
-                    Debug.WriteLine($"Instance: {name}");
-                }
+                    // "pid_..."로 시작하는 인스턴스가 실제 프로세스별 사용량일 수 있으므로
+                    // 전체 GPU 사용량을 보려면 "phys_..."가 포함된 인스턴스를 찾거나
+                    // 단순히 모든 엔진을 등록해서 최대값을 봅니다.
 
-                // 3D 엔진 찾기 (여러 패턴 시도)
-                string[] patterns = { "engtype_3D", "Graphics", "3D", "Compute" };
-
-
-                foreach (var pattern in patterns)
-                {
-                    foreach (string name in instanceNames)
+                    bool isTarget = false;
+                    foreach (var target in targetEngines)
                     {
-                        if (name.Contains(pattern))
+                        if (name.Contains(target) && !name.Contains("Software"))
                         {
-                            try
-                            {
-                                _gpuUsageCounter = new PerformanceCounter("GPU Engine", "Utilization Percentage", name);
-                                Debug.WriteLine($"GPU 카운터 찾음: {name}");
-                                break;
-                            }
-                            catch { }
+                            isTarget = true;
+                            break;
                         }
                     }
-                    if (_gpuUsageCounter != null) break;
+
+                    if (isTarget)
+                    {
+                        try
+                        {
+                            var tempCounter = new PerformanceCounter("GPU Engine", "Utilization Percentage", name);
+                            tempCounter.NextValue(); // 초기화
+                            _gpuLoadCounters.Add(tempCounter);
+                            Debug.WriteLine($"GPU Engine Found: {name}");
+                        }
+                        catch { }
+                    }
                 }
 
-                // VRAM 카운터
+                // VRAM 카운터 ("Dedicated Usage")
                 var memCategory = new PerformanceCounterCategory("GPU Adapter Memory");
-                foreach (string name in memCategory.GetInstanceNames())
-                {
-                    Debug.WriteLine($"Memory Instance: {name}");
+                var memInstances = memCategory.GetInstanceNames();
 
+                foreach (string name in memInstances)
+                {
                     if (!string.IsNullOrEmpty(name))
                     {
                         try
                         {
-                            _vramUsedCounter = new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", name);
-                            Debug.WriteLine($"VRAM 카운터 찾음: {name}");
-                            break;
+                            var tempCounter = new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", name);
+                            tempCounter.NextValue();
+                            _vramUsedCounter = tempCounter;
+                            Debug.WriteLine($"VRAM Counter Found: {name}");
+                            break; // VRAM은 보통 하나만 잡으면 됨
                         }
                         catch { }
                     }
@@ -1520,17 +1669,72 @@ Answer strictly in Professional Korean.";
             }
         }
 
+        // [중요] 레지스트리에서 64비트 VRAM 용량 직접 읽기 (4GB 제한 해결)
+        private long GetTotalVideoMemoryRegistry()
+        {
+            try
+            {
+                // 디스플레이 어댑터 클래스 GUID
+                string keyPath = @"SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
+
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(keyPath))
+                {
+                    if (key != null)
+                    {
+                        foreach (var subKeyName in key.GetSubKeyNames())
+                        {
+                            using (var subKey = key.OpenSubKey(subKeyName))
+                            {
+                                // HardwareInformation.QwMemorySize는 64비트(long) 용량을 담고 있음
+                                object sizeObj = subKey.GetValue("HardwareInformation.QwMemorySize");
+                                if (sizeObj != null)
+                                {
+                                    long size = Convert.ToInt64(sizeObj);
+                                    if (size > 1024 * 1024 * 1024) // 1GB 이상인 경우만 유효한 외장/메인 그래픽으로 간주
+                                    {
+                                        return size / 1024 / 1024; // MB 단위 반환
+                                    }
+                                }
+
+                                // QwMemorySize가 없으면 HardwareInformation.MemorySize (32비트) 확인
+                                // 하지만 4GB 이상인 경우 이 값은 부정확할 수 있음
+                                object sizeObj32 = subKey.GetValue("HardwareInformation.MemorySize");
+                                if (sizeObj32 != null)
+                                {
+                                    long size = Convert.ToInt64(sizeObj32);
+                                    // 32비트라도 0이 아니면 일단 후보로 둠 (우선순위 낮음)
+                                    // 그러나 보통 QwMemorySize가 있는 최신 드라이버가 타겟임
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"레지스트리 읽기 실패: {ex.Message}");
+            }
+
+            // 레지스트리 실패 시 기존 WMI 방식 Fallback (4095MB로 나오더라도 없는 것보단 나음)
+            return GetTotalVideoMemory();
+        }
+
+        // WMI를 이용해 물리적 VRAM 총 용량 조회
         private long GetTotalVideoMemory()
         {
             try
             {
+                // Win32_VideoController 클래스에서 AdapterRAM 속성 조회
                 ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT AdapterRAM FROM Win32_VideoController");
                 foreach (ManagementObject mo in searcher.Get())
                 {
+                    // 내장 그래픽 등 일부는 AdapterRAM을 제대로 보고하지 않을 수 있음
                     if (mo["AdapterRAM"] != null)
                     {
                         long bytes = Convert.ToInt64(mo["AdapterRAM"]);
-                        if (bytes > 1024 * 1024 * 512) return bytes / 1024 / 1024;
+                        // 512MB 이상인 경우만 외장/메인 그래픽으로 간주하여 반환 (작은 값은 무시)
+                        if (bytes > 1024 * 1024 * 512)
+                            return bytes / 1024 / 1024;
                     }
                 }
             }
@@ -1631,6 +1835,7 @@ Contents = excluded.Contents;";
             if (selectedItem == null) return;
 
             if (selectedItem is FileListItem fli)
+
             {
                 selectedFileName = fli.FileName; // 실제 키값(파일명) 사용
             }
