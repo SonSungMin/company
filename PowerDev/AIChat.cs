@@ -31,7 +31,7 @@ namespace DevTools.UI.Control
         // 1. 설정 및 상수 정의
         // ─────────────────────────────────────────────────────────────
         private string EYE_MODEL = "qwen2-vl";
-        private string BRAIN_MODEL = "deepseek-r1-8b";
+        private string BRAIN_MODEL = "llama3-kor";
         private const string OLLAMA_URL = "http://localhost:11434/api/generate";
         private const string CHAT_URL = "http://localhost:11434/api/chat";
         private const string EMBED_URL = "http://localhost:11434/api/embeddings";
@@ -81,10 +81,10 @@ namespace DevTools.UI.Control
             SetGlobalFontSettings();
 
             // GPU 모니터링 (필요 시 주석 해제)
-            //_gpuTimer = new Timer();
-            //_gpuTimer.Interval = 2000; 
-            //_gpuTimer.Tick += GpuTimer_Tick;
-            //_gpuTimer.Start();
+            _gpuTimer = new Timer();
+            _gpuTimer.Interval = 2000;
+            _gpuTimer.Tick += GpuTimer_Tick;
+            _gpuTimer.Start();
         }
 
         private void SetGlobalFontSettings()
@@ -206,7 +206,6 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
 
         private void SaveDefaultSetting()
         {
-            return;
             using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
             {
                 conn.Open();
@@ -263,24 +262,6 @@ Num_ctx = excluded.Num_ctx;";
             }
         }
 
-        private void SaveSystemPrompt()
-        {
-            using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
-            {
-                conn.Open();
-                string sql = @"INSERT INTO SystemPrompt (Title, Contents)
-VALUES (@title, @contents)
-ON CONFLICT(Title) DO UPDATE SET
-Contents = excluded.Contents;";
-
-                using (var cmd = new SQLiteCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@title", cboSystemPrpt.EditValue != null ? cboSystemPrpt.EditValue.ToString() : "");
-                    cmd.Parameters.AddWithValue("@contents", txtSystemPrompt.Document.Text);
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
 
         private void LoadVectorsFromDb()
         {
@@ -632,6 +613,7 @@ Contents = excluded.Contents;";
                         // A. 계층 경로(Breadcrumb) 생성
                         string categoryPath = GetCategoryPath(nodeMap, node.Id);
 
+
                         // B. 검색용 텍스트 조합
                         StringBuilder sb = new StringBuilder();
                         if (!string.IsNullOrWhiteSpace(categoryPath))
@@ -782,14 +764,14 @@ Contents = excluded.Contents;";
                     {
                         systemPrompt = @"You are an expert Senior Full Stack Engineer. 
 Prioritize the [Reference Context] for answers. 
-If the context is not relevant to the user's specific technology (e.g., C# vs ABAP), ignore it.
 Answer strictly in Professional Korean.";
                     }
                     _chatHistory.Add(new { role = "system", content = systemPrompt });
+
                     PrintChatMessage("System", $"대화를 시작합니다. (Total Knowledge: {_vectorStore.Count} Chunks)");
                 }
 
-                // 2. [RAG 하이브리드 검색] (ABAP 필터링 추가)
+                // 2. [RAG 하이브리드 검색] (ABAP 필터링 제거됨 & 정확도 로직 개선)
                 string retrievedContext = "";
                 if (_vectorStore.Count > 0 && !string.IsNullOrWhiteSpace(userPrompt))
                 {
@@ -803,40 +785,36 @@ Answer strictly in Professional Korean.";
                                                       .Where(w => w.Length >= 2)
                                                       .ToList();
 
-                        // [필터링 조건] 사용자가 'ABAP'이나 '아밥'을 질문에 포함하지 않았다면 ABAP 문서는 무시
-                        bool isAbapQuestion = userPrompt.IndexOf("ABAP", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                              userPrompt.IndexOf("아밥", StringComparison.OrdinalIgnoreCase) >= 0;
-
                         var relevantChunks = _vectorStore
                             .Select(v =>
                             {
                                 // B. 벡터 유사도
                                 double vectorScore = CosineSimilarity(queryVector, v.Vector);
 
-                                // C. 키워드 보너스
+                                // C. 키워드 보너스 (개선된 로직)
+                                // - 기존: 개당 0.1점, 최대 0.5점
+                                // - 변경: 개당 0.05점, 최대 0.3점 (단순 단어 매칭 영향력 축소)
                                 double keywordBonus = 0;
                                 foreach (var keyword in queryKeywords)
                                 {
-                                    if (v.TextChunk.Contains(keyword)) keywordBonus += 0.1;
+                                    if (v.TextChunk.Contains(keyword)) keywordBonus += 0.05;
                                 }
-                                keywordBonus = Math.Min(keywordBonus, 0.5); // 최대 0.5점
+                                keywordBonus = Math.Min(keywordBonus, 0.3);
 
-                                // D. [핵심] ABAP 페널티 적용
-                                double finalScore = vectorScore + keywordBonus;
-
-                                if (!isAbapQuestion)
+                                // [중요] 벡터 유사도가 너무 낮으면(0.3 미만) 엉뚱한 문서이므로 키워드 보너스 무시
+                                if (vectorScore < 0.3)
                                 {
-                                    // 질문은 ABAP이 아닌데, 문서 내용에 ABAP이 포함된 경우 점수 대폭 삭감
-                                    if (v.TextChunk.IndexOf("ABAP", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                        v.TextChunk.IndexOf("아밥", StringComparison.OrdinalIgnoreCase) >= 0)
-                                    {
-                                        finalScore = 0; // 검색 대상에서 사실상 제외
-                                    }
+                                    keywordBonus = 0;
                                 }
+
+                                // D. 최종 점수 (ABAP 페널티 로직 제거됨)
+                                double finalScore = vectorScore + keywordBonus;
 
                                 return new { Chunk = v, FinalScore = finalScore };
                             })
-                            .Where(x => x.FinalScore > 0.35) // 임계값
+                            // [필터링 임계값 상향] 0.35 -> 0.55
+                            // 관련성이 확실한 문서만 가져오도록 설정
+                            .Where(x => x.FinalScore > 0.55)
                             .OrderByDescending(x => x.FinalScore)
                             .Take(3)
                             .ToList();
@@ -854,7 +832,10 @@ Answer strictly in Professional Korean.";
                         if (hasRelevant)
                         {
                             retrievedContext = sb.ToString();
-                            userPrompt = $"[지식베이스 참고]:\r\n{retrievedContext}\r\n\r\n[사용자 질문]:\r\n{userPrompt}\r\n\r\n위 참고 자료를 바탕으로 답변하세요.";
+                            // [변경] RAG 데이터가 질문과 무관하면 무시하도록 명시적인 '지침(Instruction)'을 추가합니다.
+                            userPrompt = $"[지식베이스 참고데이터 (관련 없으면 무시할 것)]:\r\n{retrievedContext}\r\n\r\n" +
+                                         $"[사용자 질문]:\r\n{userPrompt}\r\n\r\n" +
+                                         $"(지침: 위 [지식베이스 참고데이터]가 사용자의 질문과 명확히 관련이 없다면 철저히 무시하고, 사용자 질문에만 답변하세요.)";
                         }
                     }
                 }
@@ -868,9 +849,6 @@ Answer strictly in Professional Korean.";
                 }
 
                 _chatHistory.Add(new { role = "user", content = userPrompt });
-
-                //string displayMsg = string.IsNullOrEmpty(retrievedContext) ? content.Text : "[업무 메모 참조됨]\n" + content.Text;
-                //PrintChatMessage("User", displayMsg);
 
                 PrintUserMessage(content.Text, !string.IsNullOrEmpty(retrievedContext));
 
@@ -946,22 +924,74 @@ Answer strictly in Professional Korean.";
                         doc.AppendText("• Options: (Not Sent / Default)\n");
                     }
 
-                    // 3. 실제 전송된 시스템 프롬프트 추출
+                    // ─────────────────────────────────────────────────────────────
+                    // [추가] 3. RAG 포함 여부 및 시스템 프롬프트 확인
+                    // ─────────────────────────────────────────────────────────────
+                    bool isRagIncluded = false;
+                    int ragLength = 0;
+                    bool systemFound = false;
+
                     if (root.TryGetProperty("messages", out var messages) && messages.ValueKind == JsonValueKind.Array)
                     {
-                        bool systemFound = false;
                         foreach (var msg in messages.EnumerateArray())
                         {
-                            if (msg.TryGetProperty("role", out var role) && role.GetString() == "system")
+                            if (msg.TryGetProperty("role", out var role))
                             {
-                                if (msg.TryGetProperty("content", out var content))
+                                string roleStr = role.GetString();
+                                string contentStr = msg.TryGetProperty("content", out var content) ? content.GetString() : "";
+
+                                // System Prompt 확인
+                                if (roleStr == "system")
                                 {
-                                    doc.AppendText($"\n[Used System Prompt]\n{content.GetString()}\n");
+                                    doc.AppendText($"\n[Used System Prompt]\n{contentStr}\n");
                                     systemFound = true;
+                                }
+
+                                // RAG Context 확인 (User 메시지 내부에 포함되어 있음)
+                                // BtnAnalyze_Click에서 "[지식베이스 참고]:" 문자열을 추가했는지 확인
+                                if (roleStr == "user")
+                                {
+                                    if (contentStr.Contains("[지식베이스 참고]:"))
+                                    {
+                                        isRagIncluded = true;
+                                        // 참고 자료의 대략적인 길이 계산
+                                        int startIdx = contentStr.IndexOf("[지식베이스 참고]:");
+                                        int endIdx = contentStr.IndexOf("[사용자 질문]:");
+                                        if (endIdx > startIdx)
+                                        {
+                                            ragLength = endIdx - startIdx;
+                                        }
+                                    }
                                 }
                             }
                         }
-                        if (!systemFound) doc.AppendText("\n[Used System Prompt]\n(시스템 프롬프트가 전송되지 않았습니다)\n");
+                    }
+
+                    if (!systemFound) doc.AppendText("\n[Used System Prompt]\n(시스템 프롬프트가 전송되지 않았습니다)\n");
+
+                    // RAG 검증 결과 출력
+                    doc.AppendText("\n[RAG Context Verification]\n");
+                    if (isRagIncluded)
+                    {
+                        DocumentRange range = doc.AppendText($"• Status: INCLUDED ✅ (Length: {ragLength} chars)\n");
+                        // 녹색으로 강조
+                        CharacterProperties cp = doc.BeginUpdateCharacters(range);
+                        cp.ForeColor = Color.Green;
+                        cp.Bold = true;
+                        doc.EndUpdateCharacters(cp);
+
+                        doc.AppendText("  (실제 프롬프트에 지식베이스 내용이 포함되어 전송됨)\n");
+                    }
+                    else
+                    {
+                        DocumentRange range = doc.AppendText("• Status: NOT FOUND ❌\n");
+                        // 빨간색으로 강조
+                        CharacterProperties cp = doc.BeginUpdateCharacters(range);
+                        cp.ForeColor = Color.Red;
+                        cp.Bold = true;
+                        doc.EndUpdateCharacters(cp);
+
+                        doc.AppendText("  (단순 사용자 질문만 전송됨)\n");
                     }
                 }
 
@@ -1001,15 +1031,16 @@ Answer strictly in Professional Korean.";
             doc.AppendText("\r\n");
 
             // 2. 참조 알림 표시 (스타일: 작게, 마젠타색)
-            if (hasReference)
-            {
-                DocumentRange refRange = doc.AppendText("★ [업무 메모 참조됨]\r\n");
-                CharacterProperties cpRef = doc.BeginUpdateCharacters(refRange);
-                cpRef.FontSize = 9;
-                cpRef.ForeColor = Color.Magenta;
-                cpRef.Bold = true;
-                doc.EndUpdateCharacters(cpRef);
-            }
+
+            //if (hasReference)
+            //{
+            //    DocumentRange refRange = doc.AppendText("★ [업무 메모 참조됨]\r\n");
+            //    CharacterProperties cpRef = doc.BeginUpdateCharacters(refRange);
+            //    cpRef.FontSize = 9;
+            //    cpRef.ForeColor = Color.Magenta;
+            //    cpRef.Bold = true;
+            //    doc.EndUpdateCharacters(cpRef);
+            //}
 
             // 3. 본문 메시지 표시 (색상 문제 해결)
             DocumentRange msgRange = doc.AppendText($"{message}\r\n");
@@ -1398,18 +1429,34 @@ Answer strictly in Professional Korean.";
             GpuInfo info = new GpuInfo();
             try
             {
-                if (_totalVramMB == 0) _totalVramMB = GetTotalVideoMemory();
-                info.MemoryTotal = (int)_totalVramMB;
-
-                if (_gpuUsageCounter == null) SetupGpuCounters();
-                if (_gpuUsageCounter != null) info.CoreLoad = (int)_gpuUsageCounter.NextValue();
-                if (_vramUsedCounter != null)
+                var process = new Process
                 {
-                    long usedBytes = (long)_vramUsedCounter.NextValue();
-                    info.MemoryUsed = (int)(usedBytes / 1024 / 1024);
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "nvidia-smi",
+                        Arguments = "--query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits",
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+
+                var parts = output.Trim().Split(',');
+                if (parts.Length >= 3)
+                {
+                    info.CoreLoad = int.Parse(parts[0].Trim());
+                    info.MemoryUsed = int.Parse(parts[1].Trim());
+                    info.MemoryTotal = int.Parse(parts[2].Trim());
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"nvidia-smi 실행 실패: {ex.Message}");
+            }
             return info;
         }
 
@@ -1417,27 +1464,60 @@ Answer strictly in Professional Korean.";
         {
             try
             {
+                // 사용 가능한 모든 GPU 카운터 출력
                 var category = new PerformanceCounterCategory("GPU Engine");
                 var instanceNames = category.GetInstanceNames();
+
+                Debug.WriteLine("=== 사용 가능한 GPU 인스턴스 ===");
                 foreach (string name in instanceNames)
                 {
-                    if (name.Contains("engtype_3D"))
-                    {
-                        _gpuUsageCounter = new PerformanceCounter("GPU Engine", "Utilization Percentage", name);
-                        break;
-                    }
+                    Debug.WriteLine($"Instance: {name}");
                 }
+
+                // 3D 엔진 찾기 (여러 패턴 시도)
+                string[] patterns = { "engtype_3D", "Graphics", "3D", "Compute" };
+
+
+                foreach (var pattern in patterns)
+                {
+                    foreach (string name in instanceNames)
+                    {
+                        if (name.Contains(pattern))
+                        {
+                            try
+                            {
+                                _gpuUsageCounter = new PerformanceCounter("GPU Engine", "Utilization Percentage", name);
+                                Debug.WriteLine($"GPU 카운터 찾음: {name}");
+                                break;
+                            }
+                            catch { }
+                        }
+                    }
+                    if (_gpuUsageCounter != null) break;
+                }
+
+                // VRAM 카운터
                 var memCategory = new PerformanceCounterCategory("GPU Adapter Memory");
                 foreach (string name in memCategory.GetInstanceNames())
                 {
+                    Debug.WriteLine($"Memory Instance: {name}");
+
                     if (!string.IsNullOrEmpty(name))
                     {
-                        _vramUsedCounter = new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", name);
-                        break;
+                        try
+                        {
+                            _vramUsedCounter = new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", name);
+                            Debug.WriteLine($"VRAM 카운터 찾음: {name}");
+                            break;
+                        }
+                        catch { }
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"카운터 설정 실패: {ex.Message}");
+            }
         }
 
         private long GetTotalVideoMemory()
@@ -1505,18 +1585,38 @@ Answer strictly in Professional Korean.";
 
         private void btnSaveSysPrpt_Click(object sender, EventArgs e)
         {
-            SaveSystemPrompt();
+            using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
+            {
+                conn.Open();
+                string sql = @"INSERT INTO SystemPrompt (Title, Contents)
+VALUES (@title, @contents)
+ON CONFLICT(Title) DO UPDATE SET
+Contents = excluded.Contents;";
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@title", cboSystemPrpt.EditValue != null ? cboSystemPrpt.EditValue.ToString() : "");
+                    cmd.Parameters.AddWithValue("@contents", txtSystemPrompt.Document.Text);
+                    cmd.ExecuteNonQuery();
+                }
+            }
 
             SaveDefaultSetting();
         }
 
         private void txtTemp_EditValueChanged(object sender, EventArgs e)
         {
+            if (_isLoading)
+                return;
+
             SaveDefaultSetting();
         }
 
         private void txtNum_ctx_EditValueChanged(object sender, EventArgs e)
         {
+            if (_isLoading)
+                return;
+
             SaveDefaultSetting();
         }
 
