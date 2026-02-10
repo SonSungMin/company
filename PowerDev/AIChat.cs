@@ -85,10 +85,10 @@ namespace DevTools.UI.Control
             SetGlobalFontSettings();
 
             // GPU 모니터링 (필요 시 주석 해제)
-            _gpuTimer = new Timer();
-            _gpuTimer.Interval = 2000;
-            _gpuTimer.Tick += GpuTimer_Tick;
-            _gpuTimer.Start();
+            //_gpuTimer = new Timer();
+            //_gpuTimer.Interval = 2000;
+            //_gpuTimer.Tick += GpuTimer_Tick;
+            //_gpuTimer.Start();
         }
 
         private void SetGlobalFontSettings()
@@ -755,7 +755,7 @@ Output ONLY one word: CHAT or SEARCH.";
             // 응답 토큰도 10개면 충분함 (속도 향상)
             var requestData = new
             {
-                model = BRAIN_MODEL, // 또는 더 가벼운 모델(gemma:2b 등) 사용 권장
+                model = "bge-m3",//BRAIN_MODEL, // 또는 더 가벼운 모델(gemma:2b 등) 사용 권장
                 messages = new[] {
                     new { role = "system", content = routerSystemPrompt },
                     new { role = "user", content = userPrompt }
@@ -767,7 +767,7 @@ Output ONLY one word: CHAT or SEARCH.";
             try
             {
                 // 여기서 토큰(token)을 넘겨주어야 취소 버튼 클릭 시 중단됨
-                var response = await SendOllamaRequest(CHAT_URL, requestData, token);
+                var response = await SendOllamaRequest("http://localhost:11434/api/embeddings", requestData, token);
 
                 if (response.IsSuccess)
                 {
@@ -792,39 +792,94 @@ Output ONLY one word: CHAT or SEARCH.";
             return true;
         }
 
+        // [AIChat.cs] 키워드 기반 검색 (정확도 보장)
+        private List<VectorData> SearchByKeyword(string userQuery)
+        {
+            var results = new List<VectorData>();
+
+            // 1. 검색어에서 의미 있는 단어 추출 (2글자 이상)
+            // 예: "RFC 호출 샘플" -> "RFC", "호출", "샘플"
+            var keywords = userQuery.Split(' ', '\t', '\n')
+                                    .Where(k => k.Length >= 2 && !string.IsNullOrWhiteSpace(k))
+                                    .ToList();
+
+            if (keywords.Count == 0) return results;
+
+            using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
+            {
+                conn.Open();
+
+                // 2. 각 키워드에 대해 LIKE 검색 수행
+                foreach (var keyword in keywords)
+                {
+                    // 영문 대소문자 구분 없이 검색하기 위해 UPPER 사용 권장 (SQLite 설정에 따라 다름)
+                    string sql = "SELECT FileName, TextChunk FROM VectorStore WHERE TextChunk LIKE @kw LIMIT 3";
+
+                    using (var cmd = new SQLiteCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@kw", $"%{keyword}%");
+
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string fileName = reader["FileName"].ToString();
+                                string chunk = reader["TextChunk"].ToString();
+
+                                // 중복 방지 체크
+                                if (!results.Any(r => r.FileName == fileName && r.TextChunk == chunk))
+                                {
+                                    results.Add(new VectorData
+                                    {
+                                        FileName = fileName,
+                                        TextChunk = chunk,
+                                        Vector = null // 키워드 검색은 벡터 계산 불필요
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return results;
+        }
+
         private async void BtnAnalyze_Click(object sender, EventArgs e)
         {
             // ─────────────────────────────────────────────────────────────
-            // [수정] 취소(Stop) 로직 구현
+            // 1. [취소 로직] 실행 중인 작업 중단
             // ─────────────────────────────────────────────────────────────
-            // 이미 실행 중이라면 취소 요청 후 종료
             if (_cts != null)
             {
-                _cts.Cancel();
+                _cts.Cancel(); // 1. 취소 신호 전송
                 _cts.Dispose();
                 _cts = null;
 
-                if (mproAiThink != null) 
+                // UI 상태 즉시 복구 (애니메이션 중지 등)
+                if (mproAiThink != null)
                     mproAiThink.Properties.Stopped = true;
 
                 layAiThink.Visibility = DevExpress.XtraLayout.Utils.LayoutVisibility.Never;
 
-                return;
+                // 버튼 상태는 finally 블록에서 복구되거나, 여기서 강제로 원복 가능
+                btnAnalyze.Text = "분석";
+                btnAnalyze.ImageOptions.Image = imgStopStart.Images[1];
+
+                return; // 작업 종료
             }
 
-            // 새로운 작업 시작을 위한 토큰 생성
+            // ─────────────────────────────────────────────────────────────
+            // 2. 신규 작업 시작 준비
+            // ─────────────────────────────────────────────────────────────
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
 
             try
             {
-                // [UI 변경] 분석 중에는 버튼을 '중단' 버튼으로 변경
-                // (아이콘이나 텍스트를 변경하여 사용자에게 알림)
+                // [UI 변경] '분석' -> '중단' 버튼으로 변경
                 btnAnalyze.Text = "중단";
                 btnAnalyze.ImageOptions.Image = imgStopStart.Images[0];
                 this.Cursor = Cursors.WaitCursor;
-
-                // 기존의 btnAnalyze.Enabled = false; 는 삭제 (클릭해야 하므로)
 
                 if (mproAiThink != null)
                 {
@@ -832,9 +887,10 @@ Output ONLY one word: CHAT or SEARCH.";
                     mproAiThink.Properties.Stopped = false;
                 }
 
-                // 1. 입력 내용 추출
+                // 3. 입력 내용 추출 (텍스트 + 이미지)
                 var content = ExtractContentFromRichEdit();
                 string userPrompt = content.Text;
+
                 string base64Image = content.ImageBase64;
 
                 if (string.IsNullOrWhiteSpace(userPrompt) && string.IsNullOrEmpty(base64Image))
@@ -843,70 +899,99 @@ Output ONLY one word: CHAT or SEARCH.";
                     return;
                 }
 
-                // 2. 시스템 프롬프트 초기화 (기존 코드와 동일)
-                string strictSystemPrompt = @"You are an expert Senior Full Stack Engineer.
-Answer based strictly on the provided context.
-- If the answer is not in the context, say you don't know.
-- Answer in Professional Korean.";
+                // 4. 시스템 프롬프트 정의
+                // [Strict Mode] RAG 정보가 있을 때: 문서 기반 답변 강제 + 유추 허용
+                // [Strict Mode] RAG Context Analysis
+                string strictSystemPrompt = @"You are an expert Senior Full-Stack Engineer.
+Your task is to precisely analyze the provided [Context] to answer the user's query.
 
-                string generalSystemPrompt = @"You are a helpful AI assistant.
-Answer the user's question freely and naturally.
-- For technical questions, provide expert advice.
-- For greetings or general talk, respond appropriately.
-- Answer in Professional Korean.";
+### Instructions:
+1. **Inference:** Even if the code is incomplete or fragmentary, infer its functionality based on variable names, logic, or structure.
+2. **Valid Input:** Treat partial code (e.g., parameter configuration, initialization steps) as valid 'sample code' and provide a full analysis based on it.
+3. **Output Format:** Provide specific, actionable explanations that a developer can immediately use.
+4. **Fallback:** Only reply with 'I do not know' if there is absolutely no relevance found in the context.
+5. **Language:** YOU MUST ANSWER STRICTLY IN PROFESSIONAL KOREAN.";
 
+                // [General Mode] General AI Assistant
+                string generalSystemPrompt = @"You are a helpful and versatile AI Assistant.
+Engage in a natural and free-flowing conversation with the user.
+
+### Guidelines:
+- Provide expert-level advice and insights for technical questions.
+- Maintain a helpful and polite tone.
+- **Language:** YOU MUST ANSWER STRICTLY IN PROFESSIONAL KOREAN.";
+
+                // 대화 기록이 없으면 초기화 (일단 일반 모드로 시작)
                 if (_chatHistory.Count == 0)
                 {
                     _chatHistory.Add(new { role = "system", content = generalSystemPrompt });
-                    PrintChatMessage("System", $"대화를 시작합니다. (Total Knowledge: {_vectorStore.Count} Chunks)");
                 }
 
-                // 3. 의도 파악 (토큰 전달)
-                bool isSearchNeeded = false;
-                if (!string.IsNullOrEmpty(base64Image))
-                {
-                    isSearchNeeded = true;
-                }
-                else
-                {
-                    lblStatus.Text = "질문 의도 파악 중...";
-                    // [변경] 토큰 전달
-                    isSearchNeeded = await IsSearchRequiredAsync(userPrompt, token);
-                }
+                // ─────────────────────────────────────────────────────────────
+                // 5. 하이브리드 검색 (Vector + Keyword)
+                // ─────────────────────────────────────────────────────────────
+                // 체크박스가 체크되어 있을 때만 지식베이스 검색 수행
+                bool isSearchNeeded = chkUseRAG.Checked;
 
-                // 4. RAG 검색 (토큰 전달)
                 string retrievedContext = "";
                 string finalUserMessage = userPrompt;
                 bool isContextFound = false;
 
                 if (isSearchNeeded && _vectorStore.Count > 0)
                 {
-                    lblStatus.Text = "지식베이스 검색 중...";
-                    // [변경] 토큰 전달
+                    lblStatus.Text = "하이브리드 검색 중...";
+
+                    // A. [벡터 검색] 의미 기반 (유사도 0.25 이상)
+                    var vectorResults = new List<dynamic>();
                     var queryVector = await GetEmbeddingAsync(userPrompt, token);
 
                     if (queryVector != null)
                     {
-                        var relevantChunks = _vectorStore
+                        vectorResults = _vectorStore
                             .Select(v => new { Chunk = v, Score = CosineSimilarity(queryVector, v.Vector) })
-                            .Where(x => x.Score > 0.35)
+                            .Where(x => x.Score > 0.25) // 기준값 완화 (0.35 -> 0.25)
                             .OrderByDescending(x => x.Score)
-                            .Take(3)
+                            .Take(5) // 상위 5개
+                            .Select(x => (dynamic)new { x.Chunk, Score = x.Score, Type = "Vector" })
                             .ToList();
+                    }
 
-                        if (relevantChunks.Count > 0)
+                    // B. [키워드 검색] 정확한 단어 매칭 (Keyword Search 함수 필요)
+                    // (SearchByKeyword 함수는 별도로 구현되어 있어야 합니다)
+                    var keywordResults = SearchByKeyword(userPrompt);
+
+                    foreach (var kwItem in keywordResults)
+                    {
+                        // 중복 제거 (이미 벡터 검색에 나온 파일이면 패스)
+                        bool exists = vectorResults.Any(v => v.Chunk.FileName == kwItem.FileName && v.Chunk.TextChunk == kwItem.TextChunk);
+                        if (!exists)
                         {
-                            isContextFound = true;
-                            StringBuilder sb = new StringBuilder();
-                            foreach (var item in relevantChunks)
-                            {
-                                sb.AppendLine($"<doc score='{item.Score:F2}'>");
-                                sb.AppendLine(item.Chunk.TextChunk);
-                                sb.AppendLine("</doc>");
-                            }
-                            retrievedContext = sb.ToString();
+                            // 키워드 매칭은 점수 1.0(최상위) 부여
+                            vectorResults.Add(new { Chunk = kwItem, Score = 1.0, Type = "Keyword" });
+                        }
+                    }
 
-                            finalUserMessage = $@"
+                    // C. [최종 통합] 점수순 정렬 후 상위 5개 선정
+                    var finalResults = vectorResults
+                        .OrderByDescending(x => x.Score)
+                        .Take(5)
+                        .ToList();
+
+                    if (finalResults.Count > 0)
+                    {
+                        isContextFound = true;
+                        StringBuilder sb = new StringBuilder();
+                        foreach (var item in finalResults)
+                        {
+                            // 디버깅을 위해 Type(Vector/Keyword)과 점수를 태그에 포함
+                            sb.AppendLine($"<doc type='{item.Type}' score='{item.Score:F2}'>");
+                            sb.AppendLine(item.Chunk.TextChunk);
+                            sb.AppendLine("</doc>");
+                        }
+                        retrievedContext = sb.ToString();
+
+                        // LLM에게 전달할 최종 프롬프트 구성
+                        finalUserMessage = $@"
 [Context]:
 {retrievedContext}
 
@@ -915,42 +1000,48 @@ Answer the user's question freely and naturally.
 
 [Instruction]:
 Based on the [Context] above, answer the question.";
-                        }
+                    }
+                    else
+                    {
+                        // 체크박스는 켰으나, 검색 결과가 없는 경우
+                        Debug.WriteLine("[RAG] 검색 결과 없음");
                     }
                 }
 
-                // 시스템 프롬프트 교체 (기존 동일)
+                // 6. 시스템 프롬프트 교체
                 if (_chatHistory.Count > 0)
                 {
                     if (isContextFound)
                     {
+                        // 문서를 찾았으면 Strict Mode 적용
                         _chatHistory[0] = new { role = "system", content = strictSystemPrompt };
-                        Debug.WriteLine("[Mode] Strict (RAG Active)");
+                        PrintChatMessage("System", $"[지식베이스 참조] {userPrompt} (관련 문서 {retrievedContext.Split(new[] { "<doc" }, StringSplitOptions.None).Length - 1}건)");
                     }
                     else
                     {
+                        // 문서를 못 찾았으면 General Mode 적용
                         _chatHistory[0] = new { role = "system", content = generalSystemPrompt };
-                        Debug.WriteLine("[Mode] General (Free Chat)");
+                        if (isSearchNeeded)
+                            PrintChatMessage("System", "관련된 문서를 찾지 못해 일반 지식으로 답변합니다.");
                     }
                 }
 
-                // 5. 이미지 처리 (토큰 전달)
+                // 7. 이미지 처리 (Vision)
                 if (!string.IsNullOrEmpty(base64Image))
                 {
                     string ocrPrompt = "Extract text from this image.";
-                    // [변경] 토큰 전달
                     var ocrResult = await CallOllamaSingleAsync(EYE_MODEL, null, ocrPrompt, base64Image, token);
                     finalUserMessage = $"[Image Text]:\r\n{ocrResult.ResponseText}\r\n\r\n{finalUserMessage}";
                 }
 
-                // 6. 전송 및 응답 (토큰 전달)
+                // 8. 메시지 출력 및 전송
                 PrintUserMessage(userPrompt, isContextFound);
                 _chatHistory.Add(new { role = "user", content = finalUserMessage });
 
                 lblStatus.Text = "답변 생성 중...";
-                // [변경] 토큰 전달
                 var result = await CallOllamaHistoryAsync(BRAIN_MODEL, _chatHistory, token);
 
+                // 9. 결과 처리
                 if (result.IsSuccess)
                 {
                     _chatHistory.Add(new { role = "assistant", content = result.ResponseText });
@@ -960,32 +1051,29 @@ Based on the [Context] above, answer the question.";
                 }
                 else
                 {
-                    // 취소된 경우에도 여기로 올 수 있으므로 메시지 확인
-                    if (token.IsCancellationRequested)
-                        PrintChatMessage("System", "작업이 사용자에 의해 취소되었습니다.");
-                    else
+                    // 취소된 경우 예외가 발생하여 catch로 이동하지만,
+                    // 혹시 성공 플래그가 false인 경우 에러 메시지 출력
+                    if (!token.IsCancellationRequested)
                         PrintChatMessage("Error", result.ResponseText);
                 }
-
-                lblStatus.Text = "완료";
             }
             catch (OperationCanceledException)
             {
-                // 취소 예외 처리
-                PrintChatMessage("System", "작업이 취소되었습니다.");
+                PrintChatMessage("System", "작업이 사용자에 의해 취소되었습니다.");
                 lblStatus.Text = "취소됨";
             }
             catch (Exception ex)
             {
-                PrintChatMessage("Error", ex.Message);
+                PrintChatMessage("Error", $"오류 발생: {ex.Message}");
             }
             finally
             {
-                // [UI 복구] 버튼 텍스트 및 상태 원복
-                btnAnalyze.Text = "분석"; // 또는 원래 텍스트
+                // [UI 복구] 작업 종료 후 버튼 상태 원복
+                btnAnalyze.Text = "분석";
                 btnAnalyze.ImageOptions.Image = imgStopStart.Images[1];
 
-                if (mproAiThink != null) mproAiThink.Properties.Stopped = true;
+                if (mproAiThink != null)
+                    mproAiThink.Properties.Stopped = true;
 
                 this.Cursor = Cursors.Default;
 
@@ -995,6 +1083,8 @@ Based on the [Context] above, answer the question.";
                     _cts.Dispose();
                     _cts = null;
                 }
+
+                lblStatus.Text = "대기";
             }
         }
 
@@ -1024,7 +1114,6 @@ Based on the [Context] above, answer the question.";
                     // 1. 모델 확인
                     if (root.TryGetProperty("model", out var model))
                         doc.AppendText($"• Used Model: {model.GetString()}\n");
-
 
                     // 2. 옵션 확인 (Temperature, Num_ctx)
                     if (root.TryGetProperty("options", out var options))
@@ -1835,7 +1924,6 @@ Contents = excluded.Contents;";
             if (selectedItem == null) return;
 
             if (selectedItem is FileListItem fli)
-
             {
                 selectedFileName = fli.FileName; // 실제 키값(파일명) 사용
             }
@@ -1887,6 +1975,17 @@ Contents = excluded.Contents;";
             public override string ToString()
             {
                 return DisplayText; // 리스트박스에는 이 값이 표시됨
+            }
+        }
+
+        private void txtNumCtxGB_EditValueChanged(object sender, EventArgs e)
+        {
+            if (txtNumCtxGB.EditValue == null)
+                return;
+
+            if(int.TryParse(txtNumCtxGB.EditValue.ToString(), out int gb))
+            {
+                txtNum_ctx.EditValue = gb * 1024;
             }
         }
     }
