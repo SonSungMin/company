@@ -1,0 +1,92 @@
+불합격 후 정리해본 출제 경향
+한번 떨어져보니, 다음에는 꼭 붙어야겠다고 다짐했습니다. 한 과목만 치르면 되는 상황에서 위의 후기를 보고 정리해보면 합격할 수 있겠다고 생각했습니다. 그런데..
+처음으로 불합격을 했습니다. 물론 공부를 많이한 편은 아니지만 조금은 충격인 상황이었습니다. 범위도 어느 정도 제한이 되어있다고 생각했고, AI 기초는 데이터 분석가 경험이 있어서 쉽게 나왔다고 생각했는데 조금 아쉬웠죠. 물론 그 실패 원인은 꼼꼼히 가이드를 읽지 않은 부분입니다. 정보가 없는 상황에서는 좀 시간을 투자해야하거든요.
+다른 분들은 저와 같은 실수를 하지 않기를 바라며 출제된 내용을 바탕으로 내맘대로 요약해보겠습니다. 또한, 제가 치른 문제도 해당 시험의 "일부"에 해당하는 점을 참고해주시면 좋겠습니다.
+
+1. AI 기초
+AI 기초는 머신러닝 프레임워크 부분이 많이 시험에 나왔습니다. 
+프레임워크는 주로 Python을 기반으로 하는 Scikit-learn, Tensorflow, Keras, PyTorch 등이 있습니다. 
+그런데 제가 치른 시험은 Scikit-learn, Tensorflow, Keras 정도만 나오긴 했네요. 
+해당 프레임워크의 특징을 기억해두시면 좋습니다. 블로그 글로 간략히 파악만하시면 충분합니다. 
+물론 제대로 공부하신다면 각 프레임워크별로 공식 도큐먼트를 참고하면 가장 좋겠습니다.
+https://scikit-learn.org/stable/
+https://www.tensorflow.org/?hl=ko
+www.tensorflow.org
+https://keras.io
+
+또한, 해당 프레임워크를 위해 데이터 전처리를 할 때 자주 사용하는 라이브러리도 있습니다. 바로 Numpy나 Pandas 정도입니다. 다만 그 내용이 너무 방대하므로 공인 교육을 듣지 않으신 분들은, 급하다면 Numpy의 대략적인 문법 특징만 알아보시면 될 것 같습니다. Pandas가 잘 안 나와서 아쉬웠던 기억이 있네요.
+
+2. 다양한 AI 알고리즘
+이 부분은 일반적인 데이터 분석과도 연관있습니다. 지도학습, 비지도학습, 강화학습이라는 큰 틀을 두고 특징을 정리해두세요. 해당 틀에 맞는 알고리즘들을 정리해두면 좋습니다. 다른 데이터 분석 자격증 시험 책에도 자세히 나오기도 하고 위키 백과 등을 참고하시면 되겠습니다. 제가 시험을 봤을 때, 딥러닝도 물어보기는 하지만 개념만 알면 될 것 같고, 해당 알고리즘을 깊게 물어보지는 않았습니다.
+아래와 같은 블로그글로 대략적인 개념을 알아두고 해당하는 분석 알고리즘을 정리해두시면 됩니다.
+
+https://ebbnflow.tistory.com/165
+
+3. CLOVA 상품군
+공인 교육을 듣지 않으셨다면, 시간을 좀 들여서 Clova Chatbot, Clova OCR, Clova Aitems의 서비스 소개 및 공식 가이드를 꼼꼼히 읽어주세요. 특히 기본 사용 가이드의 유의사항, FAQ과 API 가이드도 읽어주시면 좋습니다. API 가이드의 경우, Custom API 연동 가이드도 한문제 정도는 출제가 되니 대략적인 프로세스만 정리해둬도 도움이 될 것입니다.
+
+1. CLOVA Chatbot 서비스 소개 및 사용 가이드, API 가이드
+https://www.ncloud.com/product/aiService/chatbot
+https://guide.ncloud-docs.com/docs/chatbot-chatbot-overview
+https://api.ncloud-docs.com/docs/ai-application-service-chatbot
+
+2. CLOVA OCR 서비스 소개 및 사용 가이드, API 가이드
+https://www.ncloud.com/product/aiService/ocr
+https://guide.ncloud-docs.com/docs/ko/clovaocr-overview
+https://api.ncloud-docs.com/docs/ai-application-service-ocr
+
+3. CLOVA AiTEMS 서비스 소개 및 사용 가이드, API 가이드
+https://www.ncloud.com/product/aiService/aitems
+https://guide.ncloud-docs.com/docs/aitems-overview
+https://api.ncloud-docs.com/docs/ai-application-service-aitems
+
+그 외에는 CLOVA Speech, CLOVA Dubbing, Papago translation 정도가 기억납니다. 물론 가이드를 보시면 됩니다. 다만, 자주 나오는 부분은 용량 및 글자 수 제한, 지원 파일 포맷(형식), 지원 언어 등이 있습니다. 이를 중점적으로 기억해두시면 좋겠습니다.
+
+3-1. 추천: CLOVA 상품군은 그림도 참고해보기
+CLOVA 서비스는 그림으로 보는게 제일 편하긴 했습니다. 
+가이드나 서비스 소개에 이런 그림들이 있습니다. 
+예를 들면, CLOVA OCR의 프로세스가 무엇이 있고, 각 단계마다 어떤 작업이 속해있는지 한 눈에 볼 수 있습니다. 
+혹은 슬라이딩 윈도우 적용시 토큰 수 초과시 오래된 순으로 삭제한다든지, clir-emb-dolphin과 clir-sts-dolphin 이라는 것의 특징을 비교하는 내용이죠? 
+이렇게 프로세스와 비교하는 부분이 자주 나온 기억이 있네요. 그림을 잘 봐두시는 것을 추천합니다!
+
+
+4. 언어 모델 및 LLM(대규모 언어 모델) 그리고 생성형 AI
+공인 교육을 안 들으신 분들은, LLM(Large Language Model)에 대한 기초 지식을 다룬 블로그를 참고해주세요. 그리고 이전 버전인 LM(언어 모델)과의 비교도 해주시면 금상첨화입니다. 참고로 생성형 AI는 CLOVA-X, CLOVA Studio, AI Cue 등 네이버에서 제공하는 다양한 생성형 AI 기반 서비스를 비교하며 공부해주시면 충분하다고 생각합니다.
+
+https://wikidocs.net/21668
+https://www.elastic.co/kr/what-is/large-language-models
+
+CLOVA-X, AI cue, HyperCLOVA, HyperCLOVA-X 등 네이버의 다양한 서비스도 대략적으로 구분해주시면 좋습니다. 크게 보려면 DAN 23의 소개 영상에 나온 아래 그림도 공부하기에는 좋았습니다. 
+해당 그림에서 각 서비스의 대상이 누구(사용자/창작자 vs 판매자/광고주/기업 등)인지 정도는 구분하면 좋습니다. 
+
+
+위 그림은 아래 사이트를 참고했습니다.
+
+https://channeltech.naver.com/contentDetail/44
+https://campaign.nbilly.naver.com/navergenerativeai
+https://www.ncloud.com/solution/featured/hyperclovax
+
+5. CLOVA Studio: 플레이그라운드, 튜닝, 익스플로러, 스킬트레이너
+여기는 기본적으로 서비스 소개, 사용자 가이드, API 가이드 문서를 보면 되는데, 주의할 점은 CLOVA Studio 자체 가이드가 있습니다. 이것도 함께 보셔야 합니다. 특히 튜닝과 스킬트레이너 부분은 가이드를 꼼꼼히 보시길 추천합니다. 이 부분은 특히나 직접 사용해보지 않으면 어렵다고 느낄 수 있습니다.
+
+https://www.ncloud.com/product/aiService/clovaStudio
+https://api.ncloud-docs.com/docs/ai-naver-clovastudio-summary
+
+다만 CLOVA Studio 자체 가이드는 CLOVA Studio라는 베타 서비스 이용 신청자가 볼 수 있습니다. 가이드를 제공하면서 상품을 사용하는 사이트라 그렇습니다.
+
+https://clovastudio.ncloud.com
+
+아래는 사용자 가이드 > CLOVA Studio 사용 > 익스플로러 > API 사용 부분과 CLOVA Studio 페이지 가이드 예시입니다. 
+이렇게 사용자 가이드 문서는 갱신되지 않은 파라미터(segCount) 같은 게 있는데, 
+이런 것은 CLOVA Studio 자체 가이드에 나온 파라미터(segCnt)로 최신화해서 알아두셔야 합니다.
+
+만약 사용자 가이드문서와 CLOVA Studio 자체 가이드에서 충돌나는 부분이 있다면, 
+최신화되는 CLOVA Studio 사이트의 자체 가이드를 우선으로 해주시길 바랍니다. 
+실제 서비스 사이트가 사용자 가이드 문서보다 좀 더 최신화된 정보를 제공합니다. 
+이런 파라미터를 묻는 문제가 좀 있으니 알아두시면 좋겠습니다.
+
+6. 기타: 네이버 CLOVA AI 윤리
+이 부분은 제가 아직 본 적은 없으나, 위 커뮤니티에서 나온다고 하니 가이드 문서 혹은 첨부한 네이버의 AI 윤리 준칙 사이트만 읽어보셔도 충분할 것이라 생각합니다.
+
+https://guide.ncloud-docs.com/docs/clovastudio-ethics
+https://www.navercorp.com/tech/techAI 
