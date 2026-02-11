@@ -34,6 +34,7 @@ namespace DevTools.UI.Control
         // ─────────────────────────────────────────────────────────────
         private string EYE_MODEL = "qwen2-vl";
         private string BRAIN_MODEL = "llama3-kor";
+        private string LIGHT_MODLE = "gemma2-2b";
         private const string OLLAMA_URL = "http://localhost:11434/api/generate";
         private const string CHAT_URL = "http://localhost:11434/api/chat";
         private const string EMBED_URL = "http://localhost:11434/api/embeddings";
@@ -167,6 +168,7 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
     SystemPrompt TEXT NOT NULL,
     Temperature TEXT,
     Num_ctx TEXT,
+    UseRAG TEXT,
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 );
                     ";
@@ -188,16 +190,19 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
                 using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
                 {
                     conn.Open();
-                    string sql = "SELECT Model, SystemPrompt, Temperature, Num_ctx FROM DefaultSetting ORDER BY CreatedAt DESC LIMIT 1";
+                    string sql = "SELECT Model, SystemPrompt, Temperature, Num_ctx, UseRAG FROM DefaultSetting ORDER BY CreatedAt DESC LIMIT 1";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     using (var reader = cmd.ExecuteReader())
                     {
                         if (reader.Read())
                         {
                             cboSystemPrpt.EditValue = reader["SystemPrompt"];
+                            txtSystemPrompt.Document.Text = GetSystemPrompt;
+
                             cboModelList.EditValue = reader["Model"];
                             txtTemp.EditValue = reader["Temperature"];
                             txtNum_ctx.EditValue = reader["Num_ctx"];
+                            chkUseRAG.Checked = reader["UseRAG"] != null && reader["UseRAG"].ToString() == "Y";
                         }
                     }
                 }
@@ -213,13 +218,14 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
             using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
             {
                 conn.Open();
-                string sql = @"INSERT INTO DefaultSetting (id, Model, SystemPrompt, Temperature, Num_ctx)
-VALUES (1, @model, @systemPrompt, @temperature, @num_ctx)
+                string sql = @"INSERT INTO DefaultSetting (id, Model, SystemPrompt, Temperature, Num_ctx, UseRAG)
+VALUES (1, @model, @systemPrompt, @temperature, @num_ctx, @userag)
 ON CONFLICT(id) DO UPDATE SET
 Model = excluded.Model,
 SystemPrompt = excluded.SystemPrompt,
 Temperature = excluded.Temperature,
-Num_ctx = excluded.Num_ctx;";
+Num_ctx = excluded.Num_ctx,
+UseRAG = excluded.UseRAG;";
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -227,6 +233,7 @@ Num_ctx = excluded.Num_ctx;";
                     cmd.Parameters.AddWithValue("@systemPrompt", cboSystemPrpt.EditValue != null ? cboSystemPrpt.EditValue.ToString() : "");
                     cmd.Parameters.AddWithValue("@temperature", txtTemp.EditValue != null ? txtTemp.Text : "");
                     cmd.Parameters.AddWithValue("@num_ctx", txtNum_ctx.EditValue != null ? txtNum_ctx.Text : "");
+                    cmd.Parameters.AddWithValue("@userag", chkUseRAG.Checked ? "Y" : "N");
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -277,7 +284,7 @@ Num_ctx = excluded.Num_ctx;";
                 using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
                 {
                     conn.Open();
-                    string sql = "SELECT FileName, TextChunk, VectorJson FROM VectorStore";
+                    string sql = "SELECT FileName, TextChunk, VectorJson FROM VectorStore ORDER BY TextChunk";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -755,7 +762,7 @@ Output ONLY one word: CHAT or SEARCH.";
             // 응답 토큰도 10개면 충분함 (속도 향상)
             var requestData = new
             {
-                model = "bge-m3",//BRAIN_MODEL, // 또는 더 가벼운 모델(gemma:2b 등) 사용 권장
+                model = LIGHT_MODLE,
                 messages = new[] {
                     new { role = "system", content = routerSystemPrompt },
                     new { role = "user", content = userPrompt }
@@ -792,91 +799,158 @@ Output ONLY one word: CHAT or SEARCH.";
             return true;
         }
 
-        // [AIChat.cs] 키워드 기반 검색 (정확도 보장)
-        private List<VectorData> SearchByKeyword(string userQuery)
+        private List<dynamic> SearchByKeyword(string userQuery)
         {
-            var results = new List<VectorData>();
+            var results = new List<dynamic>();
 
-            // 1. 검색어에서 의미 있는 단어 추출 (2글자 이상)
-            // 예: "RFC 호출 샘플" -> "RFC", "호출", "샘플"
-            var keywords = userQuery.Split(' ', '\t', '\n')
-                                    .Where(k => k.Length >= 2 && !string.IsNullOrWhiteSpace(k))
+            // 한국어 주요 조사 (검색 품질 향상을 위해 제거 대상)
+            string[] josa = { "은", "는", "이", "가", "을", "를", "에", "의", "로", "과", "와", "에서", "으로" };
+
+            // 1. 키워드 분리 및 조사 제거
+            var keywords = userQuery.Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(k => {
+                                        string clean = k;
+                                        foreach (var j in josa)
+                                        {
+                                            if (clean.EndsWith(j) && clean.Length > j.Length)
+                                            {
+                                                clean = clean.Substring(0, clean.Length - j.Length);
+                                                break;
+                                            }
+                                        }
+                                        return clean.ToUpper();
+                                    })
+                                    .Where(k => k.Length >= 2)
+                                    .Distinct()
                                     .ToList();
 
             if (keywords.Count == 0) return results;
 
-            using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
+            // 2. 검색 실행
+            foreach (var doc in _vectorStore)
             {
-                conn.Open();
+                double score = 0;
+                string content = doc.TextChunk.ToUpper();
 
-                // 2. 각 키워드에 대해 LIKE 검색 수행
-                foreach (var keyword in keywords)
+                foreach (var kw in keywords)
                 {
-                    // 영문 대소문자 구분 없이 검색하기 위해 UPPER 사용 권장 (SQLite 설정에 따라 다름)
-                    string sql = "SELECT FileName, TextChunk FROM VectorStore WHERE TextChunk LIKE @kw LIMIT 3";
-
-                    using (var cmd = new SQLiteCommand(sql, conn))
+                    // [.NET Framework 호환] Contains 대신 IndexOf 사용
+                    if (content.IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        cmd.Parameters.AddWithValue("@kw", $"%{keyword}%");
-
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                string fileName = reader["FileName"].ToString();
-                                string chunk = reader["TextChunk"].ToString();
-
-                                // 중복 방지 체크
-                                if (!results.Any(r => r.FileName == fileName && r.TextChunk == chunk))
-                                {
-                                    results.Add(new VectorData
-                                    {
-                                        FileName = fileName,
-                                        TextChunk = chunk,
-                                        Vector = null // 키워드 검색은 벡터 계산 불필요
-                                    });
-                                }
-                            }
-                        }
+                        score += 1.0;
+                        // [분류]나 [제목]에 포함되면 가중치 부여
+                        if (content.IndexOf($"[분류] ", StringComparison.OrdinalIgnoreCase) >= 0 && content.Contains(kw)) score += 2.0;
+                        if (content.IndexOf($"[제목] ", StringComparison.OrdinalIgnoreCase) >= 0 && content.Contains(kw)) score += 2.0;
                     }
                 }
+
+                if (score > 0)
+                {
+                    results.Add(new { Chunk = doc, Score = score });
+                }
             }
-            return results;
+
+            return results.OrderByDescending(x => x.Score).Take(5).ToList();
+        }
+
+        // [Helper] 텍스트 청크에서 [분류] 또는 [제목] 정보를 추출하여 표시용 문자열 생성
+        private string ExtractReferenceInfo(string textChunk)
+        {
+            if (string.IsNullOrWhiteSpace(textChunk)) return "알 수 없는 문서";
+
+            using (StringReader sr = new StringReader(textChunk))
+            {
+                string line;
+                string category = "";
+                string title = "";
+
+                // 상위 10줄 정도만 검사하여 메타데이터 추출
+                int checkLineCount = 0;
+                while ((line = sr.ReadLine()) != null && checkLineCount < 10)
+                {
+                    if (line.StartsWith("[분류]"))
+                        category = line.Replace("[분류]", "").Trim();
+
+                    if (line.StartsWith("[제목]"))
+                        title = line.Replace("[제목]", "").Trim();
+
+                    if (!string.IsNullOrEmpty(category) && !string.IsNullOrEmpty(title))
+                        break;
+
+                    checkLineCount++;
+                }
+
+                if (!string.IsNullOrEmpty(category) && !string.IsNullOrEmpty(title))
+                    return $"{category} > {title}";
+
+                if (!string.IsNullOrEmpty(category)) return category;
+                if (!string.IsNullOrEmpty(title)) return title;
+
+                // 태그가 없으면 첫 줄을 제목으로 간주
+                return textChunk.Split('\n')[0].Trim();
+            }
+        }
+
+        private async Task<string> ExpandQueryWithAIAsync(string userPrompt, CancellationToken token)
+        {
+            string systemPrompt = @"You are a Technical Search Assistant. 
+Extract the core technical entities and nouns from the user's query. 
+Convert natural language intent into potential technical keywords (English/Korean) that might appear in source code or database objects.";
+
+            systemPrompt = @"You are a search keyword extractor.
+- Extract ONLY technical keywords from the query.
+- Convert natural language to code-related terms.
+- OUTPUT: Only keywords separated by spaces.
+- NO explanation, NO headers, NO markdown.";
+
+            try
+            {
+                var requestData = new
+                {
+                    model = LIGHT_MODLE,
+                    messages = new[] {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user", content = userPrompt }
+                    },
+                    stream = false,
+                    options = new
+                    {
+                        temperature = 0.1, // 낮을수록 지시를 더 잘 따름
+                        num_predict = 30    // 길게 말하지 못하게 제한
+                    }
+                };
+
+                var response = await SendOllamaRequest(CHAT_URL, requestData, token);
+
+                if (response.IsSuccess)
+                {
+                    string raw = response.ResponseText.Trim();
+
+                    // AI가 혹시라도 줄바꿈이나 기호(#, *)를 넣었을 경우를 대비해 청소합니다.
+                    string clean = System.Text.RegularExpressions.Regex.Replace(raw, @"[#*:\-]", "");
+                    clean = clean.Replace("\n", " ").Replace("\r", " ");
+
+                    return clean;
+                }
+            }
+            catch { }
+            return "";
         }
 
         private async void BtnAnalyze_Click(object sender, EventArgs e)
         {
-            // ─────────────────────────────────────────────────────────────
-            // 1. [취소 로직] 실행 중인 작업 중단
-            // ─────────────────────────────────────────────────────────────
             if (_cts != null)
             {
-                _cts.Cancel(); // 1. 취소 신호 전송
-                _cts.Dispose();
-                _cts = null;
-
-                // UI 상태 즉시 복구 (애니메이션 중지 등)
-                if (mproAiThink != null)
-                    mproAiThink.Properties.Stopped = true;
-
-                layAiThink.Visibility = DevExpress.XtraLayout.Utils.LayoutVisibility.Never;
-
-                // 버튼 상태는 finally 블록에서 복구되거나, 여기서 강제로 원복 가능
-                btnAnalyze.Text = "분석";
-                btnAnalyze.ImageOptions.Image = imgStopStart.Images[1];
-
-                return; // 작업 종료
+                try { _cts.Cancel(); } catch (ObjectDisposedException) { }
+                return;
             }
 
-            // ─────────────────────────────────────────────────────────────
-            // 2. 신규 작업 시작 준비
-            // ─────────────────────────────────────────────────────────────
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
+            Stopwatch sw = Stopwatch.StartNew();
 
             try
             {
-                // [UI 변경] '분석' -> '중단' 버튼으로 변경
                 btnAnalyze.Text = "중단";
                 btnAnalyze.ImageOptions.Image = imgStopStart.Images[0];
                 this.Cursor = Cursors.WaitCursor;
@@ -887,10 +961,8 @@ Output ONLY one word: CHAT or SEARCH.";
                     mproAiThink.Properties.Stopped = false;
                 }
 
-                // 3. 입력 내용 추출 (텍스트 + 이미지)
                 var content = ExtractContentFromRichEdit();
                 string userPrompt = content.Text;
-
                 string base64Image = content.ImageBase64;
 
                 if (string.IsNullOrWhiteSpace(userPrompt) && string.IsNullOrEmpty(base64Image))
@@ -899,49 +971,49 @@ Output ONLY one word: CHAT or SEARCH.";
                     return;
                 }
 
-                // 4. 시스템 프롬프트 정의
-                // [Strict Mode] RAG 정보가 있을 때: 문서 기반 답변 강제 + 유추 허용
-                // [Strict Mode] RAG Context Analysis
-                string strictSystemPrompt = @"You are an expert Senior Full-Stack Engineer.
-Your task is to precisely analyze the provided [Context] to answer the user's query.
+                // ─────────────────────────────────────────────────────────────
+                // [수정] 시스템 프롬프트: 규칙 도배 대신 '전문가적 자율성' 부여
+                // ─────────────────────────────────────────────────────────────
+                string strictSystemPrompt = @"You are a Senior Full-Stack Engineer and Database Expert.
+Analyze the provided [Context] using your professional programming knowledge.
 
-### Instructions:
-1. **Inference:** Even if the code is incomplete or fragmentary, infer its functionality based on variable names, logic, or structure.
-2. **Valid Input:** Treat partial code (e.g., parameter configuration, initialization steps) as valid 'sample code' and provide a full analysis based on it.
-3. **Output Format:** Provide specific, actionable explanations that a developer can immediately use.
-4. **Fallback:** Only reply with 'I do not know' if there is absolutely no relevance found in the context.
-5. **Language:** YOU MUST ANSWER STRICTLY IN PROFESSIONAL KOREAN.";
+### GUIDELINES:
+1. **Semantic Analysis:** Do not just look for keywords. Interpret the code structure (SQL, C#, etc.) to identify technical objects like Procedures, Tables, and Functions based on their syntax and usage.
+2. **Confident Inference:** If the code pattern (e.g., BEGIN...END, Method calls) implies a specific technical entity, treat it as such and explain it to the user.
+3. **Fact-Based:** While you should infer meaning, do not invent names or logic that have no basis in the provided snippets.
+4. **Professionalism:** Provide technical insights that a developer would find useful.
+5. **Language:** Answer strictly in Professional Korean.";
 
-                // [General Mode] General AI Assistant
-                string generalSystemPrompt = @"You are a helpful and versatile AI Assistant.
-Engage in a natural and free-flowing conversation with the user.
+                string generalSystemPrompt = @"You are a helpful AI Assistant. Answer strictly in Professional Korean.";
 
-### Guidelines:
-- Provide expert-level advice and insights for technical questions.
-- Maintain a helpful and polite tone.
-- **Language:** YOU MUST ANSWER STRICTLY IN PROFESSIONAL KOREAN.";
-
-                // 대화 기록이 없으면 초기화 (일단 일반 모드로 시작)
                 if (_chatHistory.Count == 0)
                 {
                     _chatHistory.Add(new { role = "system", content = generalSystemPrompt });
                 }
 
                 // ─────────────────────────────────────────────────────────────
-                // 5. 하이브리드 검색 (Vector + Keyword)
+                // 스마트 검색: AI에게 줄 '재료'를 유연하게 찾는 단계
                 // ─────────────────────────────────────────────────────────────
-                // 체크박스가 체크되어 있을 때만 지식베이스 검색 수행
                 bool isSearchNeeded = chkUseRAG.Checked;
-
                 string retrievedContext = "";
-                string finalUserMessage = userPrompt;
                 bool isContextFound = false;
+                List<string> references = new List<string>();
+
+                txtResultInfo.Document.Text = "";
 
                 if (isSearchNeeded && _vectorStore.Count > 0)
                 {
-                    lblStatus.Text = "하이브리드 검색 중...";
+                    lblStatus.Text = "지식 베이스 분석 중...";
 
-                    // A. [벡터 검색] 의미 기반 (유사도 0.25 이상)
+                    // [STEP 1] 단순 명사 추출 및 검색어 확장
+                    string expandedKeywords = await ExpandQueryWithAIAsync(userPrompt, token);
+                    string combinedQuery = $"{userPrompt} {expandedKeywords}";
+
+                    txtResultInfo.Document.AppendText("-----최종 쿼리-----\r\n");
+                    txtResultInfo.Document.AppendText($"{combinedQuery}\r\n");
+                    txtResultInfo.Document.AppendText("-------------------\r\n");
+
+                    // [STEP 2] 하이브리드 검색 (Vector + Keyword)
                     var vectorResults = new List<dynamic>();
                     var queryVector = await GetEmbeddingAsync(userPrompt, token);
 
@@ -949,33 +1021,24 @@ Engage in a natural and free-flowing conversation with the user.
                     {
                         vectorResults = _vectorStore
                             .Select(v => new { Chunk = v, Score = CosineSimilarity(queryVector, v.Vector) })
-                            .Where(x => x.Score > 0.25) // 기준값 완화 (0.35 -> 0.25)
+                            .Where(x => x.Score > 0.25)
                             .OrderByDescending(x => x.Score)
-                            .Take(5) // 상위 5개
+                            .Take(5)
                             .Select(x => (dynamic)new { x.Chunk, Score = x.Score, Type = "Vector" })
                             .ToList();
                     }
 
-                    // B. [키워드 검색] 정확한 단어 매칭 (Keyword Search 함수 필요)
-                    // (SearchByKeyword 함수는 별도로 구현되어 있어야 합니다)
-                    var keywordResults = SearchByKeyword(userPrompt);
-
+                    var keywordResults = SearchByKeyword(combinedQuery);
                     foreach (var kwItem in keywordResults)
                     {
-                        // 중복 제거 (이미 벡터 검색에 나온 파일이면 패스)
-                        bool exists = vectorResults.Any(v => v.Chunk.FileName == kwItem.FileName && v.Chunk.TextChunk == kwItem.TextChunk);
-                        if (!exists)
+                        if (!vectorResults.Any(v => v.Chunk.FileName == kwItem.Chunk.FileName && v.Chunk.TextChunk == kwItem.Chunk.TextChunk))
                         {
-                            // 키워드 매칭은 점수 1.0(최상위) 부여
-                            vectorResults.Add(new { Chunk = kwItem, Score = 1.0, Type = "Keyword" });
+                            vectorResults.Add(new { Chunk = kwItem.Chunk, Score = kwItem.Score, Type = "Keyword" });
                         }
                     }
 
-                    // C. [최종 통합] 점수순 정렬 후 상위 5개 선정
-                    var finalResults = vectorResults
-                        .OrderByDescending(x => x.Score)
-                        .Take(5)
-                        .ToList();
+                    // [STEP 3] 최종 결과 통합
+                    var finalResults = vectorResults.OrderByDescending(x => x.Score).Take(5).ToList();
 
                     if (finalResults.Count > 0)
                     {
@@ -983,107 +1046,64 @@ Engage in a natural and free-flowing conversation with the user.
                         StringBuilder sb = new StringBuilder();
                         foreach (var item in finalResults)
                         {
-                            // 디버깅을 위해 Type(Vector/Keyword)과 점수를 태그에 포함
-                            sb.AppendLine($"<doc type='{item.Type}' score='{item.Score:F2}'>");
-                            sb.AppendLine(item.Chunk.TextChunk);
-                            sb.AppendLine("</doc>");
+                            sb.AppendLine($"<doc source='{item.Chunk.FileName}'>\n{item.Chunk.TextChunk}\n</doc>");
+                            string refInfo = ExtractReferenceInfo(item.Chunk.TextChunk);
+                            if (!references.Contains(refInfo)) references.Add(refInfo);
                         }
                         retrievedContext = sb.ToString();
-
-                        // LLM에게 전달할 최종 프롬프트 구성
-                        finalUserMessage = $@"
-[Context]:
-{retrievedContext}
-
-[Question]: 
-{userPrompt}
-
-[Instruction]:
-Based on the [Context] above, answer the question.";
-                    }
-                    else
-                    {
-                        // 체크박스는 켰으나, 검색 결과가 없는 경우
-                        Debug.WriteLine("[RAG] 검색 결과 없음");
                     }
                 }
 
-                // 6. 시스템 프롬프트 교체
+                // ─────────────────────────────────────────────────────────────
+                // AI 응답 생성
+                // ─────────────────────────────────────────────────────────────
+                string finalUserMessage = isContextFound ? $"[Context]\n{retrievedContext}\n\n[User Question]\n{userPrompt}" : userPrompt;
+
                 if (_chatHistory.Count > 0)
-                {
-                    if (isContextFound)
-                    {
-                        // 문서를 찾았으면 Strict Mode 적용
-                        _chatHistory[0] = new { role = "system", content = strictSystemPrompt };
-                        PrintChatMessage("System", $"[지식베이스 참조] {userPrompt} (관련 문서 {retrievedContext.Split(new[] { "<doc" }, StringSplitOptions.None).Length - 1}건)");
-                    }
-                    else
-                    {
-                        // 문서를 못 찾았으면 General Mode 적용
-                        _chatHistory[0] = new { role = "system", content = generalSystemPrompt };
-                        if (isSearchNeeded)
-                            PrintChatMessage("System", "관련된 문서를 찾지 못해 일반 지식으로 답변합니다.");
-                    }
-                }
+                    _chatHistory[0] = new { role = "system", content = isContextFound ? strictSystemPrompt : generalSystemPrompt };
 
-                // 7. 이미지 처리 (Vision)
-                if (!string.IsNullOrEmpty(base64Image))
-                {
-                    string ocrPrompt = "Extract text from this image.";
-                    var ocrResult = await CallOllamaSingleAsync(EYE_MODEL, null, ocrPrompt, base64Image, token);
-                    finalUserMessage = $"[Image Text]:\r\n{ocrResult.ResponseText}\r\n\r\n{finalUserMessage}";
-                }
-
-                // 8. 메시지 출력 및 전송
                 PrintUserMessage(userPrompt, isContextFound);
                 _chatHistory.Add(new { role = "user", content = finalUserMessage });
 
                 lblStatus.Text = "답변 생성 중...";
                 var result = await CallOllamaHistoryAsync(BRAIN_MODEL, _chatHistory, token);
+                sw.Stop();
 
-                // 9. 결과 처리
                 if (result.IsSuccess)
                 {
-                    _chatHistory.Add(new { role = "assistant", content = result.ResponseText });
-                    PrintChatMessage("AI", result.ResponseText);
+                    StringBuilder finalResponse = new StringBuilder(result.ResponseText);
+                    if (references.Count > 0)
+                    {
+                        finalResponse.AppendLine("\r\n\r\n---\r\n**[참조된 지식]**");
+                        for (int i = 0; i < references.Count; i++)
+                            finalResponse.AppendLine($"{i + 1}. {references[i]}");
+                    }
+
+                    string responseWithRef = finalResponse.ToString();
+                    _chatHistory.Add(new { role = "assistant", content = responseWithRef });
+                    PrintChatMessage("AI", responseWithRef);
+
+                    PrintExecutionTime(sw.Elapsed);
                     PrintTokenUsage(result.PromptEvalCount, result.EvalCount);
                     PrintGenerationInfo(result);
                 }
-                else
+                else if (!token.IsCancellationRequested)
                 {
-                    // 취소된 경우 예외가 발생하여 catch로 이동하지만,
-                    // 혹시 성공 플래그가 false인 경우 에러 메시지 출력
-                    if (!token.IsCancellationRequested)
-                        PrintChatMessage("Error", result.ResponseText);
+                    PrintChatMessage("Error", result.ResponseText);
                 }
             }
-            catch (OperationCanceledException)
-            {
-                PrintChatMessage("System", "작업이 사용자에 의해 취소되었습니다.");
-                lblStatus.Text = "취소됨";
-            }
-            catch (Exception ex)
-            {
-                PrintChatMessage("Error", $"오류 발생: {ex.Message}");
-            }
+            catch (OperationCanceledException) { lblStatus.Text = "취소됨"; }
+            catch (Exception ex) { PrintChatMessage("Error", ex.Message); }
             finally
             {
-                // [UI 복구] 작업 종료 후 버튼 상태 원복
                 btnAnalyze.Text = "분석";
                 btnAnalyze.ImageOptions.Image = imgStopStart.Images[1];
-
-                if (mproAiThink != null)
-                    mproAiThink.Properties.Stopped = true;
-
+                if (mproAiThink != null) mproAiThink.Properties.Stopped = true;
+                layAiThink.Visibility = DevExpress.XtraLayout.Utils.LayoutVisibility.Never;
                 this.Cursor = Cursors.Default;
-
-                // 토큰 정리
-                if (_cts != null)
-                {
-                    _cts.Dispose();
-                    _cts = null;
-                }
-
+                var ctsToDispose = _cts;
+                _cts = null;
+                if (ctsToDispose != null) ctsToDispose.Dispose();
                 lblStatus.Text = "대기";
             }
         }
@@ -1099,7 +1119,6 @@ Based on the [Context] above, answer the question.";
             txtResultInfo.Document.BeginUpdate();
             try
             {
-                txtResultInfo.Document.Text = "";
                 Document doc = txtResultInfo.Document;
 
                 // 헤더
@@ -1156,7 +1175,7 @@ Based on the [Context] above, answer the question.";
                                 // BtnAnalyze_Click에서 "[지식베이스 참고]:" 문자열을 추가했는지 확인
                                 if (roleStr == "user")
                                 {
-                                    if (contentStr.Contains("[지식베이스 참고]:"))
+                                    if (contentStr.Contains("[지식베이스 참고]"))
                                     {
                                         isRagIncluded = true;
                                         // 참고 자료의 대략적인 길이 계산
@@ -1280,6 +1299,7 @@ Based on the [Context] above, answer the question.";
 
                 // [수정] 토큰 전달
                 var response = await client.PostAsync(EMBED_URL, content, token);
+
 
                 if (!response.IsSuccessStatusCode) return null;
                 var body = await response.Content.ReadAsStringAsync();
@@ -1458,12 +1478,30 @@ Based on the [Context] above, answer the question.";
             return (text, imgBase64);
         }
 
+        // 실행 시간 출력
+        private void PrintExecutionTime(TimeSpan elapsed)
+        {
+            // 요청하신 포맷: [AI] 100초 (1분 40초)
+            string timeText = $"[AI] {(int)elapsed.TotalSeconds}초 ({elapsed.Minutes}분 {elapsed.Seconds}초)";
+
+            Document doc = txtResult.Document;
+            doc.AppendText("\r\n"); // 줄바꿈
+
+            DocumentRange range = doc.AppendText(timeText);
+
+            CharacterProperties cp = doc.BeginUpdateCharacters(range);
+            cp.FontName = "Consolas"; // 고정폭 글꼴 권장
+            cp.FontSize = 8;          // 토큰 사용량과 동일한 크기
+            cp.ForeColor = Color.Gray; // 토큰 사용량과 동일한 색상
+            doc.EndUpdateCharacters(cp);
+        }
+
         private void PrintChatMessage(string role, string msg)
         {
             Document doc = txtResult.Document;
             doc.AppendText("\r\n──────────────────────────────────────────────────\r\n");
 
-            // 1. Role 표시 ([AI], [System] 등)
+            // 1. Role 표시
             DocumentRange range = doc.AppendText($"[{role}] ");
             CharacterProperties cp = doc.BeginUpdateCharacters(range);
             cp.Bold = true;
@@ -1473,11 +1511,9 @@ Based on the [Context] above, answer the question.";
             else cp.ForeColor = Color.Black;
             doc.EndUpdateCharacters(cp);
 
-            // 줄바꿈
             doc.AppendText("\r\n");
 
-            // 2. 본문 메시지 표시 (마크다운 포맷팅 적용)
-            // 기존: 단순 텍스트 추가 -> 변경: 마크다운 파싱 함수 호출
+            // 2. 본문 메시지 (마크다운 파싱 및 스타일 적용)
             AppendMarkdownFormatted(doc, msg);
 
             // 스크롤 이동
@@ -1493,65 +1529,138 @@ Based on the [Context] above, answer the question.";
         {
             if (string.IsNullOrEmpty(text)) return;
 
-            // ``` 를 기준으로 텍스트 분리
-            // 짝수 인덱스: 일반 텍스트, 홀수 인덱스: 코드 블록
-            string[] segments = text.Split(new string[] { "```" }, StringSplitOptions.None);
+            // 1. 코드 블록(```) 분리
+            string[] codeSegments = text.Split(new string[] { "```" }, StringSplitOptions.None);
 
-            for (int i = 0; i < segments.Length; i++)
+            for (int i = 0; i < codeSegments.Length; i++)
             {
-                string segment = segments[i];
-                if (string.IsNullOrEmpty(segment)) continue;
-
-                if (i % 2 == 0)
+                // 홀수 인덱스는 코드 블록, 짝수는 일반 텍스트
+                if (i % 2 == 1)
                 {
-                    // [일반 텍스트]
-                    DocumentRange range = doc.AppendText(segment);
-                    CharacterProperties cp = doc.BeginUpdateCharacters(range);
-                    cp.FontName = "맑은 고딕";
-                    cp.FontSize = 10;
-                    cp.ForeColor = Color.Black;
-                    cp.BackColor = Color.Transparent;
-                    doc.EndUpdateCharacters(cp);
+                    AppendCodeBlock(doc, codeSegments[i]);
+                    continue;
                 }
-                else
-                {
-                    // [코드 블록]
-                    string codeContent = segment;
 
-                    // 첫 줄의 언어 식별자(예: csharp, python) 제거 로직
-                    int firstLineBreak = segment.IndexOfAny(new char[] { '\r', '\n' });
-                    if (firstLineBreak >= 0)
+                // 2. 일반 텍스트: 줄 단위 처리
+                string[] lines = codeSegments[i].Replace("\r\n", "\n").Split('\n');
+
+                foreach (string line in lines)
+                {
+                    if (string.IsNullOrWhiteSpace(line))
                     {
-                        string firstLine = segment.Substring(0, firstLineBreak).Trim();
-                        // 언어 태그로 추정되면(공백없고 짧음) 제거
-                        if (firstLine.Length > 0 && firstLine.Length < 20 && !firstLine.Contains(" "))
-                        {
-                            codeContent = segment.Substring(firstLineBreak).TrimStart();
-                        }
+                        doc.AppendText("\r\n");
+                        continue;
                     }
 
-                    // 코드 블록 위아래로 약간의 여백 추가
+                    string cleanLine = line.TrimEnd();
+                    bool isHeader = false;
+                    bool isList = false;
+                    float fontSize = 10f; // 기본 폰트 크기
+
+                    // 문단 스타일 적용을 위한 범위 시작점
+                    int paragraphStart = doc.Range.End.ToInt();
+
+                    // A. 헤더 감지 (# 또는 1. 2. 등의 숫자 목차)
+                    if (System.Text.RegularExpressions.Regex.IsMatch(cleanLine.Trim(), @"^(#+\s|\d+\.\s)"))
+                    {
+                        isHeader = true;
+                        fontSize = 12f; // 헤더는 조금 크게
+                                        // 마크다운 헤더 기호(#) 제거
+                        if (cleanLine.Trim().StartsWith("#"))
+                            cleanLine = cleanLine.TrimStart('#', ' ');
+                    }
+                    // B. 리스트 감지 (* 또는 -)
+                    else if (cleanLine.Trim().StartsWith("* ") || cleanLine.Trim().StartsWith("- "))
+                    {
+                        isList = true;
+                        // 불릿 기호 제거 (DevExpress 글머리 기호 대신 깔끔한 유니코드 사용)
+                        cleanLine = "  • " + cleanLine.Trim().Substring(2);
+                    }
+
+                    // C. 인라인 볼드 처리 (**text**) 및 텍스트 추가
+                    string[] boldSegments = cleanLine.Split(new string[] { "**" }, StringSplitOptions.None);
+                    for (int j = 0; j < boldSegments.Length; j++)
+                    {
+                        DocumentRange range = doc.AppendText(boldSegments[j]);
+                        CharacterProperties cp = doc.BeginUpdateCharacters(range);
+                        cp.FontName = "맑은 고딕";
+                        cp.FontSize = fontSize;
+                        cp.ForeColor = Color.Black;
+
+                        // 헤더는 전체 볼드, 일반 문장은 ** 사이만 볼드
+                        if (isHeader)
+                        {
+                            cp.Bold = true;
+                        }
+                        else
+                        {
+                            // 짝수 인덱스: 일반, 홀수 인덱스: 볼드 (split 특성상)
+                            if (j % 2 == 1) cp.Bold = true;
+                        }
+                        doc.EndUpdateCharacters(cp);
+                    }
+
+                    // 줄바꿈
                     doc.AppendText("\r\n");
 
-                    DocumentRange range = doc.AppendText(codeContent);
+                    // D. 문단 속성(들여쓰기) 적용
+                    DocumentRange paragraphRange = doc.CreateRange(paragraphStart, doc.Range.End.ToInt() - paragraphStart);
+                    ParagraphProperties pp = doc.BeginUpdateParagraphs(paragraphRange);
 
-                    // 1. 글자 스타일 (Consolas, 진한 파랑, 연회색 배경)
-                    CharacterProperties cp = doc.BeginUpdateCharacters(range);
-                    cp.FontName = "Consolas";
-                    cp.FontSize = 9;
-                    cp.ForeColor = Color.FromArgb(0, 0, 139); // DarkBlue
-                    cp.BackColor = Color.FromArgb(240, 240, 240); // 연한 회색 배경
-                    doc.EndUpdateCharacters(cp);
+                    if (isList)
+                    {
+                        pp.LeftIndent = 30; // 목록 들여쓰기 (픽셀 단위)
+                        pp.FirstLineIndentType = ParagraphFirstLineIndent.Hanging; // 내어쓰기
+                        pp.FirstLineIndent = 15;
+                    }
+                    else if (isHeader)
+                    {
+                        pp.SpacingBefore = 10; // 헤더 위쪽 여백
+                        pp.SpacingAfter = 5;   // 헤더 아래쪽 여백
+                    }
+                    else
+                    {
+                        pp.LeftIndent = 0;
+                    }
 
-                    // 2. 문단 스타일 (들여쓰기 적용)
-                    ParagraphProperties pp = doc.BeginUpdateParagraphs(range);
-                    pp.LeftIndent = 20; // 20 픽셀 들여쓰기
-                    pp.RightIndent = 20;
                     doc.EndUpdateParagraphs(pp);
-
-                    doc.AppendText("\r\n");
                 }
             }
+        }
+
+        // 코드 블록 스타일링 헬퍼 함수
+        private void AppendCodeBlock(Document doc, string codeText)
+        {
+            // 언어 태그 제거 (예: csharp)
+            string cleanCode = codeText;
+            int firstBreak = codeText.IndexOfAny(new char[] { '\r', '\n' });
+            if (firstBreak >= 0 && firstBreak < 20)
+            {
+                string firstLine = codeText.Substring(0, firstBreak).Trim();
+                if (!firstLine.Contains(" ")) // 언어 태그로 간주
+                    cleanCode = codeText.Substring(firstBreak).TrimStart();
+            }
+
+            doc.AppendText("\r\n"); // 코드 블록 위 여백
+            DocumentRange range = doc.AppendText(cleanCode.TrimEnd());
+
+            // 1. 폰트 스타일 (Consolas, 파란색)
+            CharacterProperties cp = doc.BeginUpdateCharacters(range);
+            cp.FontName = "Consolas";
+            cp.FontSize = 9.5f;
+            cp.ForeColor = Color.FromArgb(0, 0, 160); // Dark Blue
+            cp.BackColor = Color.FromArgb(245, 245, 245); // 연한 회색 배경
+            doc.EndUpdateCharacters(cp);
+
+            // 2. 문단 스타일 (박스 형태 들여쓰기)
+            ParagraphProperties pp = doc.BeginUpdateParagraphs(range);
+            pp.LeftIndent = 40;
+            pp.RightIndent = 40;
+            pp.SpacingBefore = 5;
+            pp.SpacingAfter = 5;
+            doc.EndUpdateParagraphs(pp);
+
+            doc.AppendText("\r\n"); // 코드 블록 아래 여백
         }
 
         // [복구됨] 토큰 사용량 표시
@@ -1592,7 +1701,7 @@ Based on the [Context] above, answer the question.";
                     {
                         foreach (var m in data.Models)
                         {
-                            if (m.Name.StartsWith("nomic-embed-text"))
+                            if (m.Name.StartsWith("nomic-embed-text") || m.Name.StartsWith("bge-m3"))
                                 continue;
 
                             cboModelList.Properties.Items.Add(new DevExpress.XtraEditors.Controls.ImageComboBoxItem(m.Name, m.Name, -1));
@@ -1804,6 +1913,7 @@ Based on the [Context] above, answer the question.";
                 Debug.WriteLine($"레지스트리 읽기 실패: {ex.Message}");
             }
 
+
             // 레지스트리 실패 시 기존 WMI 방식 Fallback (4095MB로 나오더라도 없는 것보단 나음)
             return GetTotalVideoMemory();
         }
@@ -1861,20 +1971,30 @@ Based on the [Context] above, answer the question.";
             if (_isLoading)
                 return;
 
-            txtSystemPrompt.Document.Text = "";
-
-            string systemPrompt = cboSystemPrpt.EditValue == null ? "" : cboSystemPrpt.EditValue.ToString();
-
-            if (!string.IsNullOrEmpty(systemPrompt))
-            {
-                var tmp = _systemPropt.Where(t => t.Title == systemPrompt);
-
-                if(tmp.Any())
-                    txtSystemPrompt.Document.Text = tmp.First().Contents;
-            }
+            txtSystemPrompt.Document.Text = GetSystemPrompt;
 
             //SaveDefaultSetting();
         }
+
+        string GetSystemPrompt
+        {
+            get
+            {
+                string systemPrompt = cboSystemPrpt.EditValue == null ? "" : cboSystemPrpt.EditValue.ToString();
+                string val = "";
+
+                if (!string.IsNullOrEmpty(systemPrompt))
+                {
+                    var tmp = _systemPropt.Where(t => t.Title == systemPrompt);
+
+                    if (tmp.Any())
+                        val = tmp.First().Contents;
+                }
+
+                return val;
+            }
+        }
+
 
         private void btnSaveSysPrpt_Click(object sender, EventArgs e)
         {
@@ -1987,6 +2107,19 @@ Contents = excluded.Contents;";
             {
                 txtNum_ctx.EditValue = gb * 1024;
             }
+        }
+
+        private void chkUseRAG_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_isLoading)
+                return;
+
+            SaveDefaultSetting();
+        }
+
+        private void btnRefreshRAG_Click(object sender, EventArgs e)
+        {
+            LoadVectorsFromDb();
         }
     }
 
