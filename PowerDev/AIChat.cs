@@ -43,13 +43,6 @@ namespace DevTools.UI.Control
         private const string EMBEDDING_MODEL = "nomic-embed-text";
         private string DB_CONNECTION_STRING = SQLiteExt.ConnString;
 
-        // GPU 모니터링
-        private Timer _gpuTimer;
-        private PerformanceCounter _gpuUsageCounter;
-        private PerformanceCounter _vramUsedCounter;
-        private long _totalVramMB = 0;
-
-
         private List<SystemPrompt> _systemPropt = new List<SystemPrompt>();
 
         // [RAG] 인메모리 벡터 저장소 (DB와 동기화)
@@ -84,18 +77,12 @@ namespace DevTools.UI.Control
             lstFiles.SelectedIndexChanged += lstFiles_SelectedIndexChanged;
 
             SetGlobalFontSettings();
-
-            // GPU 모니터링 (필요 시 주석 해제)
-            //_gpuTimer = new Timer();
-            //_gpuTimer.Interval = 2000;
-            //_gpuTimer.Tick += GpuTimer_Tick;
-            //_gpuTimer.Start();
         }
 
         private void SetGlobalFontSettings()
         {
             // 디자인에 있는 모든 리치 에디트 컨트롤 목록
-            RichEditControl[] editors = { txtQuest, txtResult, txtSystemPrompt, txtAttFile, txtResultInfo };
+            RichEditControl[] editors = { txtResult, txtResultInfo };
 
             foreach (var edit in editors)
             {
@@ -148,12 +135,14 @@ namespace DevTools.UI.Control
                 string sql = @"
 CREATE TABLE IF NOT EXISTS VectorStore (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
-    FileName TEXT NOT NULL,
+    Title TEXT NOT NULL,
+    ChunkIndex INTEGER NOT NULL,
     TextChunk TEXT NOT NULL,
     VectorJson TEXT NOT NULL,
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_filename ON VectorStore(FileName);
+
+CREATE INDEX IF NOT EXISTS idx_vector_title ON VectorStore(Title, ChunkIndex);
 
 CREATE TABLE IF NOT EXISTS SystemPrompt (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -197,7 +186,7 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
                         if (reader.Read())
                         {
                             cboSystemPrpt.EditValue = reader["SystemPrompt"];
-                            txtSystemPrompt.Document.Text = GetSystemPrompt;
+                            txtSystemPrompt.Text = GetSystemPrompt;
 
                             cboModelList.EditValue = reader["Model"];
                             txtTemp.EditValue = reader["Temperature"];
@@ -287,16 +276,19 @@ UseRAG = excluded.UseRAG;";
                 using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
                 {
                     conn.Open();
-                    string sql = "SELECT FileName, TextChunk, VectorJson FROM VectorStore ORDER BY TextChunk";
+                    // [변경] FileName -> Title, ChunkIndex 추가
+                    // 정렬: 같은 문서끼리 모으고(Title), 그 안에서 순서대로(ChunkIndex)
+                    string sql = "SELECT Title, ChunkIndex, TextChunk, VectorJson FROM VectorStore ORDER BY Title, ChunkIndex";
                     using (var cmd = new SQLiteCommand(sql, conn))
                     using (var reader = cmd.ExecuteReader())
                     {
-                        // 중복 방지용 (Key: FileName)
+                        // 중복 방지용 (Key: Title)
                         var loadedItems = new Dictionary<string, FileListItem>();
 
                         while (reader.Read())
                         {
-                            string fileName = reader["FileName"].ToString();
+                            string title = reader["Title"].ToString();
+                            int chunkIndex = Convert.ToInt32(reader["ChunkIndex"]); // [추가]
                             string chunk = reader["TextChunk"].ToString();
                             string json = reader["VectorJson"].ToString();
 
@@ -307,19 +299,19 @@ UseRAG = excluded.UseRAG;";
                                 {
                                     _vectorStore.Add(new VectorData
                                     {
-                                        FileName = fileName,
+                                        Title = title,             // [변경]
+                                        ChunkIndex = chunkIndex,   // [추가]
                                         TextChunk = chunk,
                                         Vector = vector
-
                                     });
 
-                                    // 리스트박스용 아이템 생성 (아직 목록에 없으면)
-                                    if (!loadedItems.ContainsKey(fileName))
+                                    // 리스트박스용 아이템 생성 (Title 기준 중복 확인)
+                                    if (!loadedItems.ContainsKey(title))
                                     {
-                                        string displayText = fileName; // 기본값: 파일명
+                                        string displayText = title;
 
                                         // 스니펫인 경우 내용에서 [분류] 또는 [제목] 라인을 찾아 표시명으로 사용
-                                        if (fileName.StartsWith("SNIPPET_"))
+                                        if (title.StartsWith("SNIPPET_"))
                                         {
                                             using (StringReader sr = new StringReader(chunk))
                                             {
@@ -329,13 +321,13 @@ UseRAG = excluded.UseRAG;";
                                                     if (line.StartsWith("[분류]") || line.StartsWith("[제목]"))
                                                     {
                                                         displayText = line;
-                                                        break; // 첫 번째 발견된 태그를 사용
+                                                        break;
                                                     }
                                                 }
                                             }
                                         }
 
-                                        loadedItems.Add(fileName, new FileListItem { FileName = fileName, DisplayText = displayText });
+                                        loadedItems.Add(title, new FileListItem { Title = title, DisplayText = displayText });
                                     }
                                 }
                             }
@@ -373,29 +365,29 @@ UseRAG = excluded.UseRAG;";
             }
         }
 
-        private void DeleteFileFromDb(string fileName)
+        private void DeleteFileFromDb(string title)
         {
             using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
             {
                 conn.Open();
-                string sql = "DELETE FROM VectorStore WHERE FileName = @fn";
+                string sql = "DELETE FROM VectorStore WHERE Title = @title";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@fn", fileName);
+                    cmd.Parameters.AddWithValue("@title", title);
                     cmd.ExecuteNonQuery();
                 }
             }
         }
 
-        private bool IsFileProcessed(string fileName)
+        private bool IsFileProcessed(string title)
         {
             using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
             {
                 conn.Open();
-                string sql = "SELECT COUNT(*) FROM VectorStore WHERE FileName = @fn";
+                string sql = "SELECT COUNT(*) FROM VectorStore WHERE Title = @title";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@fn", fileName);
+                    cmd.Parameters.AddWithValue("@title", title);
                     long count = (long)cmd.ExecuteScalar();
                     return count > 0;
                 }
@@ -453,7 +445,7 @@ UseRAG = excluded.UseRAG;";
                     // DB 삭제 실행
                     foreach (var item in itemsToRemove)
                     {
-                        DeleteFileFromDb(item.FileName);
+                        DeleteFileFromDb(item.Title);
                     }
 
                     // 목록 새로고침
@@ -470,7 +462,7 @@ UseRAG = excluded.UseRAG;";
 
         private async Task ProcessFilesToVectorStoreAsync(string[] filePaths)
         {
-            lblStatus.Text = "파일 처리 중...";
+            lblStatus.Text = "지식 데이터 처리 중...";
             this.Cursor = Cursors.WaitCursor;
 
             try
@@ -479,60 +471,101 @@ UseRAG = excluded.UseRAG;";
                 {
                     if (!File.Exists(filePath)) continue;
 
-                    string fileName = Path.GetFileName(filePath);
+                    // 파일명을 기본 Title로 사용 (확장자 포함 or 제거 선택 가능)
+                    string title = Path.GetFileName(filePath);
 
-                    // 1. 중복 확인 로직 수정 (FileListItem 호환)
-                    bool isDuplicate = false;
-                    if (IsFileProcessed(fileName)) isDuplicate = true;
-                    else
-                    {
-                        foreach (var item in lstFiles.Items)
-                        {
-                            if (item is FileListItem fli && fli.FileName == fileName)
-                            {
-                                isDuplicate = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (isDuplicate) continue;
+                    // 중복 확인 로직 (Title 기준)
+                    if (lstFiles.Items.Cast<FileListItem>().Any(x => x.Title == title))
+                        continue;
 
                     string content = File.ReadAllText(filePath);
                     int chunkSize = 500;
                     int overlap = 50;
 
-                    // UI 리스트에 파일명 추가 (FileListItem 사용)
-                    lstFiles.Items.Add(new FileListItem { FileName = fileName, DisplayText = fileName });
+                    // UI 리스트에 추가
+                    lstFiles.Items.Add(new FileListItem { Title = title, DisplayText = title });
 
-                    for (int i = 0; i < content.Length; i += (chunkSize - overlap))
+                    int i = 0;
+                    int chunkIndex = 0; // 순서 번호
+
+                    while (i < content.Length)
                     {
+                        // [이전과 동일] 줄바꿈/공백 기준 자르기 로직
                         int length = Math.Min(chunkSize, content.Length - i);
-                        string chunkText = content.Substring(i, length);
 
-                        var embedding = await GetEmbeddingAsync(chunkText);
-
-                        if (embedding != null)
+                        if (i + length < content.Length)
                         {
-                            _vectorStore.Add(new VectorData
+                            int lastNewLine = content.LastIndexOf('\n', i + length, Math.Min(length, 150));
+                            if (lastNewLine > i) length = lastNewLine - i;
+                            else
                             {
-                                FileName = fileName,
-                                TextChunk = chunkText,
-                                Vector = embedding
-                            });
-
-                            if (chkSaveDB.Checked)
-                            {
-                                SaveVectorToDb(fileName, chunkText, embedding);
+                                int lastSpace = content.LastIndexOf(' ', i + length, Math.Min(length, 150));
+                                if (lastSpace > i) length = lastSpace - i;
                             }
                         }
+
+                        string chunkText = content.Substring(i, length).Trim();
+
+                        if (!string.IsNullOrEmpty(chunkText))
+                        {
+                            var embedding = await GetEmbeddingAsync(chunkText);
+                            if (embedding != null)
+                            {
+                                // [변경] Title을 저장
+                                if (chkSaveDB.Checked)
+                                    SaveVectorToDb(title, chunkIndex, chunkText, embedding);
+
+                                _vectorStore.Add(new VectorData
+                                {
+                                    Title = title,
+                                    ChunkIndex = chunkIndex,
+                                    TextChunk = chunkText,
+                                    Vector = embedding
+                                });
+                            }
+                        }
+
+                        chunkIndex++; // 순서 증가
+
+                        // [이전과 동일] 다음 시작점 계산 (앞쪽 줄바꿈 맞춤)
+                        int nextStart = i + length - overlap;
+                        if (nextStart < content.Length)
+                        {
+                            int startNewLine = content.LastIndexOf('\n', nextStart, Math.Min(nextStart - i, overlap + 50));
+                            if (startNewLine > i) nextStart = startNewLine + 1;
+                        }
+                        if (nextStart <= i) nextStart = i + 1;
+
+                        i = nextStart;
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"처리 중 오류: {ex.Message}");
             }
             finally
             {
                 this.Cursor = Cursors.Default;
                 lblStatus.Text = "완료";
+            }
+        }
+
+        private void SaveVectorToDb(string title, int chunkIndex, string textChunk, double[] vector)
+        {
+            using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
+            {
+                conn.Open();
+                
+                string sql = "INSERT INTO VectorStore (Title, ChunkIndex, TextChunk, VectorJson) VALUES (@title, @idx, @tc, @vj)";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@title", title);
+                    cmd.Parameters.AddWithValue("@idx", chunkIndex);
+                    cmd.Parameters.AddWithValue("@tc", textChunk);
+                    cmd.Parameters.AddWithValue("@vj", JsonSerializer.Serialize(vector));
+                    cmd.ExecuteNonQuery();
+                }
             }
         }
 
@@ -560,7 +593,6 @@ UseRAG = excluded.UseRAG;";
                 if (safetyLoop++ > 100) break; // 무한루프 방지
             }
 
-
             return currentNode;
         }
 
@@ -575,14 +607,11 @@ UseRAG = excluded.UseRAG;";
 
             try
             {
-                // 1. 전체 데이터를 메모리에 로드 (계층 구조 추적용)
                 Dictionary<int, SnippetNode> nodeMap = new Dictionary<int, SnippetNode>();
 
-                string sourceConnString = DB_CONNECTION_STRING;
-                using (var sourceConn = new SQLiteConnection(sourceConnString))
+                using (var sourceConn = new SQLiteConnection(DB_CONNECTION_STRING))
                 {
                     sourceConn.Open();
-                    // 하이라키 구성을 위해 전체 조회
                     string sql = "SELECT ID, PARENTID, CODE, CODEDESC FROM codesnippet";
                     using (var cmd = new SQLiteCommand(sql, sourceConn))
                     using (var reader = cmd.ExecuteReader())
@@ -595,9 +624,7 @@ UseRAG = excluded.UseRAG;";
                             string desc = reader["CODEDESC"]?.ToString() ?? "";
 
                             if (!nodeMap.ContainsKey(id))
-                            {
                                 nodeMap.Add(id, new SnippetNode { Id = id, ParentId = pid, Code = code, Desc = desc });
-                            }
                         }
                     }
                 }
@@ -608,104 +635,164 @@ UseRAG = excluded.UseRAG;";
                     return;
                 }
 
-                lblStatus.Text = $"총 {nodeMap.Count}건 로드됨. '조선' 관련 데이터 동기화 시작...";
+                lblStatus.Text = $"총 {nodeMap.Count}건 로드됨. 동기화 시작...";
 
-                // 2. 로컬 DB(Target) 연결
                 using (var targetConn = new SQLiteConnection(DB_CONNECTION_STRING))
                 {
                     targetConn.Open();
 
                     foreach (var node in nodeMap.Values)
                     {
-                        // [조건 1] 내용(CODEDESC)이 없으면 제외 (기존 요청사항)
-                        if (string.IsNullOrWhiteSpace(node.Desc))
-                            continue;
+                        if (string.IsNullOrWhiteSpace(node.Desc)) continue;
 
-                        // [조건 2 - 신규] 최상위(Root) 대분류가 "조선"인지 확인
                         var rootNode = GetRootNode(nodeMap, node.Id);
-                        if (rootNode == null || rootNode.Code != "조선")
-                            continue;
+                        if (rootNode == null || rootNode.Code != "조선") continue;
 
-                        // A. 계층 경로(Breadcrumb) 생성
+                        // A. 타이틀 및 내용 생성
                         string categoryPath = GetCategoryPath(nodeMap, node.Id);
+                        string cleanCategory = categoryPath.Replace(" > ", " ").Trim();
+                        string title = $"{cleanCategory} {node.Code}".Trim();
 
-                        // B. 검색용 텍스트 조합
+                        // 공백 정리
+                        while (title.Contains("  ")) title = title.Replace("  ", " ");
+
                         StringBuilder sb = new StringBuilder();
-                        if (!string.IsNullOrWhiteSpace(categoryPath))
-                        {
-                            sb.AppendLine($"[분류] {categoryPath}");
-                        }
+                        if (!string.IsNullOrWhiteSpace(categoryPath)) sb.AppendLine($"[분류] {categoryPath}");
                         sb.AppendLine($"[제목] {node.Code}");
                         sb.AppendLine($"[설명] {node.Desc}");
 
-                        string fullText = sb.ToString().Trim();
-                        if (string.IsNullOrWhiteSpace(fullText)) continue;
+                        string newFullText = sb.ToString().Trim();
+                        if (string.IsNullOrWhiteSpace(newFullText)) continue;
 
-                        if (fullText.Length > 2000) fullText = fullText.Substring(0, 2000);
-
-                        // C. DB 저장 로직 (업서트)
-                        string uniqueKey = $"SNIPPET_{node.Id}_{node.ParentId}";
-                        string existingText = null;
+                        // B. 기존 데이터 확인 (Title 기준) -> 존재 시 삭제 후 재생성 전략
                         bool exists = false;
-
-                        using (var cmdCheck = new SQLiteCommand("SELECT TextChunk FROM VectorStore WHERE FileName = @fn", targetConn))
+                        using (var cmdCheck = new SQLiteCommand("SELECT count(*) FROM VectorStore WHERE Title = @title", targetConn))
                         {
-                            cmdCheck.Parameters.AddWithValue("@fn", uniqueKey);
-                            using (var reader = cmdCheck.ExecuteReader())
-                            {
-                                if (reader.Read()) { exists = true; existingText = reader["TextChunk"].ToString(); }
-                            }
+                            cmdCheck.Parameters.AddWithValue("@title", title);
+                            long count = (long)cmdCheck.ExecuteScalar();
+                            if (count > 0) exists = true;
                         }
 
                         if (exists)
                         {
-                            if (existingText != fullText)
+                            using (var cmdDel = new SQLiteCommand("DELETE FROM VectorStore WHERE Title = @title", targetConn))
                             {
-                                var embedding = await GetEmbeddingAsync(fullText);
-                                if (embedding != null)
-                                {
-                                    using (var cmdUpdate = new SQLiteCommand("UPDATE VectorStore SET TextChunk=@tc, VectorJson=@vj WHERE FileName=@fn", targetConn))
-                                    {
-                                        cmdUpdate.Parameters.AddWithValue("@tc", fullText);
-                                        cmdUpdate.Parameters.AddWithValue("@vj", JsonSerializer.Serialize(embedding));
-                                        cmdUpdate.Parameters.AddWithValue("@fn", uniqueKey);
-                                        cmdUpdate.ExecuteNonQuery();
-                                    }
-                                    updateCount++;
-                                }
+                                cmdDel.Parameters.AddWithValue("@title", title);
+                                cmdDel.ExecuteNonQuery();
                             }
-                            else skipCount++;
+                            updateCount++;
                         }
                         else
                         {
-                            var embedding = await GetEmbeddingAsync(fullText);
-                            if (embedding != null)
+                            insertCount++;
+                        }
+
+                        // C. 청킹 및 저장
+                        int chunkSize = 500;
+                        int overlap = 50;
+                        int i = 0;
+                        int chunkIndex = 0;
+
+                        while (i < newFullText.Length)
+                        {
+                            // 1. 길이 계산 (줄바꿈 맞춤)
+                            int length = Math.Min(chunkSize, newFullText.Length - i);
+
+                            // 안전한 LastIndexOf 호출 (범위 체크 강화)
+                            if (length > 0 && i + length < newFullText.Length)
                             {
-                                using (var cmdInsert = new SQLiteCommand("INSERT INTO VectorStore (FileName, TextChunk, VectorJson) VALUES (@fn, @tc, @vj)", targetConn))
+                                int searchStartIndex = i + length - 1; // 검색 시작점 (마지막 글자)
+
+                                // [안전장치] searchStartIndex가 0보다 작으면 검색 불가
+                                if (searchStartIndex >= 0)
                                 {
-                                    cmdInsert.Parameters.AddWithValue("@fn", uniqueKey);
-                                    cmdInsert.Parameters.AddWithValue("@tc", fullText);
-                                    cmdInsert.Parameters.AddWithValue("@vj", JsonSerializer.Serialize(embedding));
-                                    cmdInsert.ExecuteNonQuery();
+                                    int searchRange = Math.Min(length, 150);
+                                    // [안전장치] count가 startIndex + 1 보다 크면 오류 발생하므로 보정
+                                    if (searchRange > searchStartIndex + 1) searchRange = searchStartIndex + 1;
+
+                                    int lastNewLine = newFullText.LastIndexOf('\n', searchStartIndex, searchRange);
+                                    if (lastNewLine > i)
+                                    {
+                                        length = lastNewLine - i;
+                                    }
+                                    else
+                                    {
+                                        int lastSpace = newFullText.LastIndexOf(' ', searchStartIndex, searchRange);
+                                        if (lastSpace > i) length = lastSpace - i;
+                                    }
                                 }
-                                insertCount++;
                             }
+
+                            string chunkText = newFullText.Substring(i, length).Trim();
+
+                            if (!string.IsNullOrEmpty(chunkText))
+                            {
+                                var embedding = await GetEmbeddingAsync(chunkText);
+                                if (embedding != null)
+                                {
+                                    using (var cmdInsert = new SQLiteCommand("INSERT INTO VectorStore (Title, ChunkIndex, TextChunk, VectorJson) VALUES (@title, @idx, @tc, @vj)", targetConn))
+                                    {
+                                        cmdInsert.Parameters.AddWithValue("@title", title);
+                                        cmdInsert.Parameters.AddWithValue("@idx", chunkIndex);
+                                        cmdInsert.Parameters.AddWithValue("@tc", chunkText);
+                                        cmdInsert.Parameters.AddWithValue("@vj", JsonSerializer.Serialize(embedding));
+                                        cmdInsert.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+
+                            chunkIndex++;
+
+                            // 2. 다음 시작 지점 계산 (핵심 수정 구간)
+                            int nextStart = i + length - overlap;
+
+                            // [수정] nextStart가 현재 위치(i)보다 뒤로 밀리거나 같아지면 안됨 (최소 1진행 보장)
+                            if (nextStart <= i) nextStart = i + 1;
+
+                            // 다음 시작점이 범위 내에 있다면, 줄바꿈에 맞춰 깔끔하게 시작하도록 조정
+                            if (nextStart < newFullText.Length)
+                            {
+                                // 검색 범위: nextStart부터 뒤로(Backwards) 찾는데, 
+                                // 절대 현재 위치(i) 보다 앞으로 가면 안됨. (nextStart - i 가 사용 가능한 최대 범위)
+                                int maxSearchLen = nextStart - i;
+
+                                // [수정] maxSearchLen이 양수일 때만 LastIndexOf 실행
+                                if (maxSearchLen > 0)
+                                {
+                                    int searchLen = Math.Min(maxSearchLen, overlap + 50);
+
+                                    // LastIndexOf의 startIndex는 nextStart가 됨
+                                    // count는 searchLen
+                                    // 조건: startIndex - count + 1 >= 0 인데, nextStart >= searchLen 이므로 안전함.
+
+                                    int startNewLine = newFullText.LastIndexOf('\n', nextStart, searchLen);
+                                    if (startNewLine > i) // i보다는 뒤에 있는 줄바꿈이어야 함
+                                    {
+                                        nextStart = startNewLine + 1;
+                                    }
+                                }
+                            }
+
+                            // 무한 루프 방지용 2차 체크
+                            if (nextStart <= i) nextStart = i + 1;
+
+                            i = nextStart;
                         }
 
                         if ((insertCount + updateCount + skipCount) % 10 == 0)
                         {
-                            lblStatus.Text = $"처리 중... (S:{skipCount} / I:{insertCount} / U:{updateCount})";
+                            lblStatus.Text = $"처리 중... (I:{insertCount} / U:{updateCount})";
                             Application.DoEvents();
                         }
                     }
                 }
 
                 LoadVectorsFromDb();
-                MessageBox.Show($"'조선' 대분류 동기화 완료!\n- 신규: {insertCount}\n- 수정: {updateCount}\n- 유지: {skipCount}");
+                MessageBox.Show($"동기화 완료!\n- 신규: {insertCount}\n- 업데이트: {updateCount}");
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"오류: {ex.Message}");
+                MessageBox.Show($"오류: {ex.Message}\n{ex.StackTrace}");
             }
             finally
             {
@@ -808,10 +895,9 @@ Output ONLY one word: CHAT or SEARCH.";
         {
             var results = new List<dynamic>();
 
-            // 한국어 주요 조사 (검색 품질 향상을 위해 제거 대상)
+            // 한국어 주요 조사 제거
             string[] josa = { "은", "는", "이", "가", "을", "를", "에", "의", "로", "과", "와", "에서", "으로" };
 
-            // 1. 키워드 분리 및 조사 제거
             var keywords = userQuery.Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                                     .Select(k => {
                                         string clean = k;
@@ -831,7 +917,6 @@ Output ONLY one word: CHAT or SEARCH.";
 
             if (keywords.Count == 0) return results;
 
-            // 2. 검색 실행
             foreach (var doc in _vectorStore)
             {
                 double score = 0;
@@ -839,7 +924,6 @@ Output ONLY one word: CHAT or SEARCH.";
 
                 foreach (var kw in keywords)
                 {
-                    // [.NET Framework 호환] Contains 대신 IndexOf 사용
                     if (content.IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         score += 1.0;
@@ -851,6 +935,7 @@ Output ONLY one word: CHAT or SEARCH.";
 
                 if (score > 0)
                 {
+                    // 여기서 doc은 VectorData 타입이므로 Title 속성을 포함하고 있음
                     results.Add(new { Chunk = doc, Score = score });
                 }
             }
@@ -976,9 +1061,6 @@ Convert natural language intent into potential technical keywords (English/Korea
                     return;
                 }
 
-                // ─────────────────────────────────────────────────────────────
-                // [수정] 시스템 프롬프트: 규칙 도배 대신 '전문가적 자율성' 부여
-                // ─────────────────────────────────────────────────────────────
                 string strictSystemPrompt = @"You are a Senior Full-Stack Engineer and Database Expert.
 Analyze the provided [Context] using your professional programming knowledge.
 
@@ -996,10 +1078,6 @@ Analyze the provided [Context] using your professional programming knowledge.
                     _chatHistory.Add(new { role = "system", content = generalSystemPrompt });
                 }
 
-                // ─────────────────────────────────────────────────────────────
-                // 스마트 검색: AI에게 줄 '재료'를 유연하게 찾는 단계
-
-                // ─────────────────────────────────────────────────────────────
                 bool isSearchNeeded = chkUseRAG.Checked;
                 string retrievedContext = "";
                 bool isContextFound = false;
@@ -1017,6 +1095,7 @@ Analyze the provided [Context] using your professional programming knowledge.
 
                     txtResultInfo.Document.AppendText("-----최종 쿼리-----\r\n");
                     txtResultInfo.Document.AppendText($"{combinedQuery}\r\n");
+
                     txtResultInfo.Document.AppendText("-------------------\r\n");
 
                     // [STEP 2] 하이브리드 검색 (Vector + Keyword)
@@ -1037,7 +1116,9 @@ Analyze the provided [Context] using your professional programming knowledge.
                     var keywordResults = SearchByKeyword(combinedQuery);
                     foreach (var kwItem in keywordResults)
                     {
-                        if (!vectorResults.Any(v => v.Chunk.FileName == kwItem.Chunk.FileName && v.Chunk.TextChunk == kwItem.Chunk.TextChunk))
+                        // [수정] FileName -> Title 로 변경
+                        // 키워드 검색 결과가 벡터 검색 결과에 이미 있는지 확인 (Title과 TextChunk 기준)
+                        if (!vectorResults.Any(v => v.Chunk.Title == kwItem.Chunk.Title && v.Chunk.TextChunk == kwItem.Chunk.TextChunk))
                         {
                             vectorResults.Add(new { Chunk = kwItem.Chunk, Score = kwItem.Score, Type = "Keyword" });
                         }
@@ -1052,7 +1133,9 @@ Analyze the provided [Context] using your professional programming knowledge.
                         StringBuilder sb = new StringBuilder();
                         foreach (var item in finalResults)
                         {
-                            sb.AppendLine($"<doc source='{item.Chunk.FileName}'>\n{item.Chunk.TextChunk}\n</doc>");
+                            // [수정] FileName -> Title 로 변경 (문서 소스 표시)
+                            sb.AppendLine($"<doc source='{item.Chunk.Title}'>\n{item.Chunk.TextChunk}\n</doc>");
+
                             string refInfo = ExtractReferenceInfo(item.Chunk.TextChunk);
                             if (!references.Contains(refInfo)) references.Add(refInfo);
                         }
@@ -1060,9 +1143,6 @@ Analyze the provided [Context] using your professional programming knowledge.
                     }
                 }
 
-                // ─────────────────────────────────────────────────────────────
-                // AI 응답 생성
-                // ─────────────────────────────────────────────────────────────
                 string finalUserMessage = isContextFound ? $"[Context]\n{retrievedContext}\n\n[User Question]\n{userPrompt}" : userPrompt;
 
                 if (_chatHistory.Count > 0)
@@ -1386,7 +1466,6 @@ Analyze the provided [Context] using your professional programming knowledge.
 
         private async Task<OllamaResponse> CallOllamaSingleAsync(string modelName, string systemPrompt, string userPrompt, string base64Image = null, CancellationToken token = default)
         {
-
             var messages = new List<object>();
             if (!string.IsNullOrWhiteSpace(systemPrompt)) messages.Add(new { role = "system", content = systemPrompt });
             messages.Add(new { role = "user", content = userPrompt, images = base64Image != null ? new[] { base64Image } : null });
@@ -1453,34 +1532,36 @@ Analyze the provided [Context] using your professional programming knowledge.
 
         private (string Text, string ImageBase64) ExtractContentFromRichEdit()
         {
-            string text = txtQuest.Document.Text.Trim();
+            string text = txtQuest.Text.Trim();
             string imgBase64 = null;
-            var images = txtQuest.Document.Images;
-            if (images.Count > 0)
-            {
-                try
-                {
-                    DocumentImage docImage = images[0];
-                    Image originalImage = docImage.Image.NativeImage;
-                    if (originalImage != null)
-                    {
-                        using (Bitmap cleanBitmap = new Bitmap(originalImage.Width, originalImage.Height))
-                        {
-                            using (Graphics g = Graphics.FromImage(cleanBitmap))
-                            {
-                                g.Clear(Color.White);
-                                g.DrawImage(originalImage, 0, 0, originalImage.Width, originalImage.Height);
-                            }
-                            using (MemoryStream ms = new MemoryStream())
-                            {
-                                cleanBitmap.Save(ms, ImageFormat.Jpeg);
-                                imgBase64 = Convert.ToBase64String(ms.ToArray());
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
+            // 이미지는 제외
+            //var images = txtQuest.Docent.Images;
+            //if (images.Count > 0)
+            //{
+            //    try
+            //    {
+            //        DocumentImage docImage = images[0];
+            //        Image originalImage = docImage.Image.NativeImage;
+            //        if (originalImage != null)
+            //        {
+            //            using (Bitmap cleanBitmap = new Bitmap(originalImage.Width, originalImage.Height))
+            //            {
+            //                using (Graphics g = Graphics.FromImage(cleanBitmap))
+            //                {
+            //                    g.Clear(Color.White);
+            //                    g.DrawImage(originalImage, 0, 0, originalImage.Width, originalImage.Height);
+            //                }
+            //                using (MemoryStream ms = new MemoryStream())
+            //                {
+            //                    cleanBitmap.Save(ms, ImageFormat.Jpeg);
+            //                    imgBase64 = Convert.ToBase64String(ms.ToArray());
+            //                }
+            //            }
+            //        }
+            //    }
+            //    catch { }
+            //}
+
             return (text, imgBase64);
         }
 
@@ -1731,222 +1812,6 @@ Analyze the provided [Context] using your professional programming knowledge.
         }
 
         // ─────────────────────────────────────────────────────────────
-        // 7. GPU 모니터링 (Optional)
-        // ─────────────────────────────────────────────────────────────
-        // 여러 엔진의 카운터를 동시에 모니터링하기 위한 리스트
-        private List<PerformanceCounter> _gpuLoadCounters = new List<PerformanceCounter>();
-
-        private void GpuTimer_Tick(object sender, EventArgs e)
-        {
-            Task.Run(() =>
-            {
-                var info = GetPerformanceCounterValues();
-
-                this.BeginInvoke(new Action(() =>
-                {
-                    // 상태 표시 업데이트
-                    if (info.MemoryTotal > 0)
-                    {
-                        prgGpuUsage.Text = $"GPU: {info.CoreLoad}% | VRAM: {info.MemoryUsed}/{info.MemoryTotal} MB";
-                        prgGpuUsage.EditValue = info.CoreLoad;
-                    }
-                    else if (info.CoreLoad > 0)
-                    {
-                        prgGpuUsage.Text = $"GPU: {info.CoreLoad}% | VRAM: {info.MemoryUsed} MB";
-                        prgGpuUsage.EditValue = info.CoreLoad;
-                    }
-                    else
-                    {
-                        prgGpuUsage.Text = "GPU 모니터링 초기화 중...";
-
-                        // 카운터가 없거나 로드가 계속 0이면 재설정 시도 (5초마다 등 제한 필요하지만 간단히 처리)
-                        if (_gpuLoadCounters.Count == 0) SetupGpuCounters();
-                    }
-                }));
-            });
-        }
-
-        private GpuInfo GetPerformanceCounterValues()
-        {
-            GpuInfo info = new GpuInfo();
-            try
-            {
-                // 1. GPU 로드율 가져오기 (가장 높은 부하를 사용)
-                // AI 작업은 3D가 아닌 Compute/Cuda 엔진을 사용하므로 여러 엔진 중 최대값을 찾음
-                float maxLoad = 0;
-                foreach (var counter in _gpuLoadCounters)
-                {
-                    try
-                    {
-                        float val = counter.NextValue();
-                        if (val > maxLoad) maxLoad = val;
-                    }
-                    catch { } // 특정 카운터 에러 무시
-                }
-                info.CoreLoad = (int)maxLoad;
-
-                // 2. VRAM 사용량 가져오기
-                if (_vramUsedCounter != null)
-                {
-                    long bytes = (long)_vramUsedCounter.NextValue();
-                    info.MemoryUsed = (int)(bytes / 1024 / 1024);
-                }
-
-                // 3. 전체 VRAM 용량 (최초 1회만 레지스트리로 조회)
-                if (_totalVramMB == 0)
-                {
-                    _totalVramMB = GetTotalVideoMemoryRegistry();
-                }
-                info.MemoryTotal = (int)_totalVramMB;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"카운터 읽기 오류: {ex.Message}");
-            }
-            return info;
-        }
-
-        private void SetupGpuCounters()
-        {
-            try
-            {
-                _gpuLoadCounters.Clear();
-                var category = new PerformanceCounterCategory("GPU Engine");
-                var instanceNames = category.GetInstanceNames();
-
-                // 모니터링할 엔진 키워드: 3D, Compute, Cuda
-                // Ollama/Llama 등 AI는 주로 'Compute_0' 또는 'Cuda' 엔진을 사용함
-                var targetEngines = new[] { "engtype_3D", "engtype_Compute", "engtype_Cuda" };
-
-                foreach (string name in instanceNames)
-                {
-                    // "pid_..."로 시작하는 인스턴스가 실제 프로세스별 사용량일 수 있으므로
-                    // 전체 GPU 사용량을 보려면 "phys_..."가 포함된 인스턴스를 찾거나
-                    // 단순히 모든 엔진을 등록해서 최대값을 봅니다.
-
-                    bool isTarget = false;
-                    foreach (var target in targetEngines)
-                    {
-                        if (name.Contains(target) && !name.Contains("Software"))
-                        {
-                            isTarget = true;
-                            break;
-                        }
-                    }
-
-                    if (isTarget)
-                    {
-                        try
-                        {
-                            var tempCounter = new PerformanceCounter("GPU Engine", "Utilization Percentage", name);
-                            tempCounter.NextValue(); // 초기화
-                            _gpuLoadCounters.Add(tempCounter);
-                            Debug.WriteLine($"GPU Engine Found: {name}");
-                        }
-                        catch { }
-                    }
-                }
-
-                // VRAM 카운터 ("Dedicated Usage")
-                var memCategory = new PerformanceCounterCategory("GPU Adapter Memory");
-                var memInstances = memCategory.GetInstanceNames();
-
-                foreach (string name in memInstances)
-                {
-                    if (!string.IsNullOrEmpty(name))
-                    {
-                        try
-                        {
-                            var tempCounter = new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", name);
-                            tempCounter.NextValue();
-                            _vramUsedCounter = tempCounter;
-                            Debug.WriteLine($"VRAM Counter Found: {name}");
-                            break; // VRAM은 보통 하나만 잡으면 됨
-                        }
-                        catch { }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"카운터 설정 실패: {ex.Message}");
-            }
-        }
-
-        // [중요] 레지스트리에서 64비트 VRAM 용량 직접 읽기 (4GB 제한 해결)
-        private long GetTotalVideoMemoryRegistry()
-        {
-            try
-            {
-                // 디스플레이 어댑터 클래스 GUID
-                string keyPath = @"SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
-
-                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(keyPath))
-                {
-                    if (key != null)
-                    {
-                        foreach (var subKeyName in key.GetSubKeyNames())
-                        {
-                            using (var subKey = key.OpenSubKey(subKeyName))
-                            {
-                                // HardwareInformation.QwMemorySize는 64비트(long) 용량을 담고 있음
-                                object sizeObj = subKey.GetValue("HardwareInformation.QwMemorySize");
-                                if (sizeObj != null)
-                                {
-                                    long size = Convert.ToInt64(sizeObj);
-                                    if (size > 1024 * 1024 * 1024) // 1GB 이상인 경우만 유효한 외장/메인 그래픽으로 간주
-                                    {
-                                        return size / 1024 / 1024; // MB 단위 반환
-                                    }
-                                }
-
-                                // QwMemorySize가 없으면 HardwareInformation.MemorySize (32비트) 확인
-                                // 하지만 4GB 이상인 경우 이 값은 부정확할 수 있음
-                                object sizeObj32 = subKey.GetValue("HardwareInformation.MemorySize");
-                                if (sizeObj32 != null)
-                                {
-                                    long size = Convert.ToInt64(sizeObj32);
-                                    // 32비트라도 0이 아니면 일단 후보로 둠 (우선순위 낮음)
-                                    // 그러나 보통 QwMemorySize가 있는 최신 드라이버가 타겟임
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"레지스트리 읽기 실패: {ex.Message}");
-            }
-
-            // 레지스트리 실패 시 기존 WMI 방식 Fallback (4095MB로 나오더라도 없는 것보단 나음)
-            return GetTotalVideoMemory();
-        }
-
-        // WMI를 이용해 물리적 VRAM 총 용량 조회
-        private long GetTotalVideoMemory()
-        {
-            try
-            {
-                // Win32_VideoController 클래스에서 AdapterRAM 속성 조회
-                ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT AdapterRAM FROM Win32_VideoController");
-                foreach (ManagementObject mo in searcher.Get())
-                {
-                    // 내장 그래픽 등 일부는 AdapterRAM을 제대로 보고하지 않을 수 있음
-                    if (mo["AdapterRAM"] != null)
-                    {
-                        long bytes = Convert.ToInt64(mo["AdapterRAM"]);
-                        // 512MB 이상인 경우만 외장/메인 그래픽으로 간주하여 반환 (작은 값은 무시)
-                        if (bytes > 1024 * 1024 * 512)
-                            return bytes / 1024 / 1024;
-                    }
-                }
-            }
-            catch { }
-            return 0;
-        }
-
-        // ─────────────────────────────────────────────────────────────
         // 8. 내부 클래스 및 구조체 (DTO)
         // ─────────────────────────────────────────────────────────────
         private class OllamaResponse
@@ -1976,7 +1841,7 @@ Analyze the provided [Context] using your professional programming knowledge.
             if (_isLoading)
                 return;
 
-            txtSystemPrompt.Document.Text = GetSystemPrompt;
+            txtSystemPrompt.Text = GetSystemPrompt;
 
             //SaveDefaultSetting();
         }
@@ -2014,7 +1879,7 @@ Contents = excluded.Contents;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@title", cboSystemPrpt.EditValue != null ? cboSystemPrpt.EditValue.ToString() : "");
-                    cmd.Parameters.AddWithValue("@contents", txtSystemPrompt.Document.Text);
+                    cmd.Parameters.AddWithValue("@contents", txtSystemPrompt.Text);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -2042,64 +1907,50 @@ Contents = excluded.Contents;";
         {
             if (lstFiles.SelectedIndex == -1) return;
 
-            // 1. 선택된 파일명 식별 (FileListItem 객체인지 문자열인지 확인)
-            string selectedFileName = "";
+            string selectedTitle = ""; // [변경] 변수명
             var selectedItem = lstFiles.SelectedItem;
 
             if (selectedItem == null) return;
 
             if (selectedItem is FileListItem fli)
             {
-                selectedFileName = fli.FileName; // 실제 키값(파일명) 사용
+                selectedTitle = fli.Title; // [변경] FileName -> Title
             }
             else
             {
-                selectedFileName = selectedItem.ToString();
+                selectedTitle = selectedItem.ToString();
             }
 
-            // 2. 해당 파일명에 해당하는 모든 청크 데이터 수집
-            var chunks = _vectorStore.Where(v => v.FileName == selectedFileName).ToList();
+            // [변경] Title로 필터링하고 ChunkIndex 순으로 정렬
+            var chunks = _vectorStore
+                            .Where(v => v.Title == selectedTitle)
+                            .OrderBy(v => v.ChunkIndex)
+                            .ToList();
 
-            // 3. 내용 표시
-            txtAttFile.BeginUpdate();
             try
             {
-                txtAttFile.Document.Text = ""; // 기존 내용 초기화 (중복 방지)
+                txtAttFile.Text = "";
 
                 if (chunks.Count > 0)
                 {
-                    // 헤더 정보
-                    txtAttFile.Document.AppendText($"[File Info]\nName: {selectedFileName}\nTotal Chunks: {chunks.Count}\n");
-                    txtAttFile.Document.AppendText(new string('=', 50) + "\n\n");
+                    txtAttFile.AppendText($"[Info]\nTitle: {selectedTitle}\nTotal Chunks: {chunks.Count}\n");
+                    txtAttFile.AppendText(new string('=', 50) + "\n\n");
 
-                    // 각 청크 내용 출력
                     for (int i = 0; i < chunks.Count; i++)
                     {
-                        txtAttFile.Document.AppendText($"--- Chunk #{i + 1} ---\n");
-                        txtAttFile.Document.AppendText(chunks[i].TextChunk);
-                        txtAttFile.Document.AppendText("\n\n");
+                        // Chunk Index도 같이 표시
+                        txtAttFile.AppendText($"--- Chunk #{chunks[i].ChunkIndex} ---\n");
+                        txtAttFile.AppendText(chunks[i].TextChunk);
+                        txtAttFile.AppendText("\n\n");
                     }
                 }
                 else
                 {
-                    txtAttFile.Document.AppendText("메모리에 로드된 데이터가 없습니다.");
+                    txtAttFile.AppendText("데이터가 없습니다.");
                 }
             }
             finally
             {
-                txtAttFile.EndUpdate();
-            }
-        }
-
-
-        private class FileListItem
-        {
-            public string FileName { get; set; }
-            public string DisplayText { get; set; }
-
-            public override string ToString()
-            {
-                return DisplayText; // 리스트박스에는 이 값이 표시됨
             }
         }
 
@@ -2149,9 +2000,21 @@ Contents = excluded.Contents;";
 
     public class VectorData
     {
-        public string FileName { get; set; }
+        public string Title { get; set; }
+        public int ChunkIndex { get; set; }
         public string TextChunk { get; set; }
         public double[] Vector { get; set; }
+    }
+
+    public class FileListItem
+    {
+        public string Title { get; set; }
+        public string DisplayText { get; set; }
+
+        public override string ToString()
+        {
+            return DisplayText;
+        }
     }
 
     public struct GpuInfo
