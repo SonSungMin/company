@@ -607,6 +607,7 @@ UseRAG = excluded.UseRAG;";
 
             try
             {
+                // 1. 원본 데이터 로드 (계층 구조 복원을 위해 메모리에 적재)
                 Dictionary<int, SnippetNode> nodeMap = new Dictionary<int, SnippetNode>();
 
                 using (var sourceConn = new SQLiteConnection(DB_CONNECTION_STRING))
@@ -637,6 +638,7 @@ UseRAG = excluded.UseRAG;";
 
                 lblStatus.Text = $"총 {nodeMap.Count}건 로드됨. 동기화 시작...";
 
+                // 2. RAG DB에 저장 (청킹 및 임베딩)
                 using (var targetConn = new SQLiteConnection(DB_CONNECTION_STRING))
                 {
                     targetConn.Open();
@@ -646,6 +648,7 @@ UseRAG = excluded.UseRAG;";
                         if (string.IsNullOrWhiteSpace(node.Desc)) continue;
 
                         var rootNode = GetRootNode(nodeMap, node.Id);
+                        // 필터링 조건 (예: '조선' 루트만 가져오기 등 필요 시 활성화)
                         if (rootNode == null || rootNode.Code != "조선") continue;
 
                         // A. 타이틀 및 내용 생성
@@ -687,39 +690,44 @@ UseRAG = excluded.UseRAG;";
                             insertCount++;
                         }
 
-                        // C. 청킹 및 저장
-                        int chunkSize = 500;
-                        int overlap = 50;
+                        // C. 청킹 및 저장 (개선된 로직)
+                        int targetChunkSize = 1000; // 코드가 포함되므로 청크 크기 확대
+                        int minChunkSize = 300;     // 최소 크기 보장
+                        int overlap = 100;          // 문맥 유지를 위한 중복 구간
                         int i = 0;
                         int chunkIndex = 0;
 
                         while (i < newFullText.Length)
                         {
-                            // 1. 길이 계산 (줄바꿈 맞춤)
-                            int length = Math.Min(chunkSize, newFullText.Length - i);
+                            // 기본 청크 길이 설정
+                            int length = Math.Min(targetChunkSize, newFullText.Length - i);
 
-                            // 안전한 LastIndexOf 호출 (범위 체크 강화)
-                            if (length > 0 && i + length < newFullText.Length)
+                            // 마지막 부분이 아니라면 분할 지점 최적화
+                            if (i + length < newFullText.Length)
                             {
-                                int searchStartIndex = i + length - 1; // 검색 시작점 (마지막 글자)
+                                int splitPoint = -1;
+                                int searchStart = i + length;
 
-                                // [안전장치] searchStartIndex가 0보다 작으면 검색 불가
-                                if (searchStartIndex >= 0)
+                                // 최소 길이(minChunkSize)를 제외한 뒷부분에서만 분할 지점을 검색
+                                // 검색 범위: (i + minChunkSize) ~ (i + length) 사이
+                                int searchRange = length - minChunkSize;
+
+                                if (searchRange > 0)
                                 {
-                                    int searchRange = Math.Min(length, 150);
-                                    // [안전장치] count가 startIndex + 1 보다 크면 오류 발생하므로 보정
-                                    if (searchRange > searchStartIndex + 1) searchRange = searchStartIndex + 1;
+                                    // [우선순위 1] 문단 바꿈 (\n\n) - 코드 블록이나 문단 사이
+                                    splitPoint = newFullText.LastIndexOf("\n\n", searchStart, searchRange);
+                                    if (splitPoint == -1)
+                                        splitPoint = newFullText.LastIndexOf("\r\n\r\n", searchStart, searchRange);
 
-                                    int lastNewLine = newFullText.LastIndexOf('\n', searchStartIndex, searchRange);
-                                    if (lastNewLine > i)
-                                    {
-                                        length = lastNewLine - i;
-                                    }
-                                    else
-                                    {
-                                        int lastSpace = newFullText.LastIndexOf(' ', searchStartIndex, searchRange);
-                                        if (lastSpace > i) length = lastSpace - i;
-                                    }
+                                    // [우선순위 2] 일반 줄바꿈 (\n) - 문단 바꿈이 없으면 줄바꿈 위치
+                                    if (splitPoint == -1)
+                                        splitPoint = newFullText.LastIndexOf('\n', searchStart, searchRange);
+                                }
+
+                                // 적절한 분할 지점을 찾았다면 길이 조정
+                                if (splitPoint > i)
+                                {
+                                    length = splitPoint - i;
                                 }
                             }
 
@@ -743,43 +751,28 @@ UseRAG = excluded.UseRAG;";
 
                             chunkIndex++;
 
-                            // 2. 다음 시작 지점 계산 (핵심 수정 구간)
+                            // 다음 시작 지점 계산 (오버랩 적용)
                             int nextStart = i + length - overlap;
 
-                            // [수정] nextStart가 현재 위치(i)보다 뒤로 밀리거나 같아지면 안됨 (최소 1진행 보장)
-                            if (nextStart <= i) nextStart = i + 1;
+                            // [안전장치] 무한 루프 및 역행 방지: 최소한 현재 위치보다는 1이라도 커야 함
+                            if (nextStart <= i) nextStart = i + Math.Max(1, length / 2);
 
-                            // 다음 시작점이 범위 내에 있다면, 줄바꿈에 맞춰 깔끔하게 시작하도록 조정
+                            // [정렬] 다음 시작점이 문맥 중간에 걸치지 않도록 줄바꿈 위치로 조정
                             if (nextStart < newFullText.Length)
                             {
-                                // 검색 범위: nextStart부터 뒤로(Backwards) 찾는데, 
-                                // 절대 현재 위치(i) 보다 앞으로 가면 안됨. (nextStart - i 가 사용 가능한 최대 범위)
-                                int maxSearchLen = nextStart - i;
-
-                                // [수정] maxSearchLen이 양수일 때만 LastIndexOf 실행
-                                if (maxSearchLen > 0)
+                                // nextStart 근처의 앞쪽 줄바꿈을 찾아 깔끔하게 시작
+                                // overlap 범위 내에서 줄바꿈을 찾음
+                                int alignNewLine = newFullText.LastIndexOf('\n', nextStart, Math.Min(nextStart - i, overlap + 50));
+                                if (alignNewLine > i)
                                 {
-                                    int searchLen = Math.Min(maxSearchLen, overlap + 50);
-
-                                    // LastIndexOf의 startIndex는 nextStart가 됨
-                                    // count는 searchLen
-                                    // 조건: startIndex - count + 1 >= 0 인데, nextStart >= searchLen 이므로 안전함.
-
-                                    int startNewLine = newFullText.LastIndexOf('\n', nextStart, searchLen);
-                                    if (startNewLine > i) // i보다는 뒤에 있는 줄바꿈이어야 함
-                                    {
-                                        nextStart = startNewLine + 1;
-                                    }
+                                    nextStart = alignNewLine + 1; // 줄바꿈 다음 글자부터 시작
                                 }
                             }
-
-                            // 무한 루프 방지용 2차 체크
-                            if (nextStart <= i) nextStart = i + 1;
 
                             i = nextStart;
                         }
 
-                        if ((insertCount + updateCount + skipCount) % 10 == 0)
+                        if ((insertCount + updateCount + skipCount) % 5 == 0)
                         {
                             lblStatus.Text = $"처리 중... (I:{insertCount} / U:{updateCount})";
                             Application.DoEvents();
@@ -789,6 +782,7 @@ UseRAG = excluded.UseRAG;";
 
                 LoadVectorsFromDb();
                 MessageBox.Show($"동기화 완료!\n- 신규: {insertCount}\n- 업데이트: {updateCount}");
+
             }
             catch (Exception ex)
             {
@@ -1095,7 +1089,6 @@ Analyze the provided [Context] using your professional programming knowledge.
 
                     txtResultInfo.Document.AppendText("-----최종 쿼리-----\r\n");
                     txtResultInfo.Document.AppendText($"{combinedQuery}\r\n");
-
                     txtResultInfo.Document.AppendText("-------------------\r\n");
 
                     // [STEP 2] 하이브리드 검색 (Vector + Keyword)
@@ -1336,6 +1329,7 @@ Analyze the provided [Context] using your professional programming knowledge.
             CharacterProperties cpRole = doc.BeginUpdateCharacters(roleRange);
             cpRole.Bold = true;
             cpRole.ForeColor = Color.Blue;
+
             doc.EndUpdateCharacters(cpRole);
 
             doc.AppendText("\r\n");
@@ -1905,53 +1899,60 @@ Contents = excluded.Contents;";
 
         private void lstFiles_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (lstFiles.SelectedIndex == -1) return;
+            // 선택 해제 시
+            if (lstFiles.SelectedIndex == -1)
+            {
+                txtAttFile.Text = "";
+                return;
+            }
 
-            string selectedTitle = ""; // [변경] 변수명
+            // 1. 선택된 Title 가져오기
+            string selectedTitle = "";
             var selectedItem = lstFiles.SelectedItem;
 
-            if (selectedItem == null) return;
-
             if (selectedItem is FileListItem fli)
-            {
-                selectedTitle = fli.Title; // [변경] FileName -> Title
-            }
+                selectedTitle = fli.Title;
             else
-            {
                 selectedTitle = selectedItem.ToString();
-            }
 
-            // [변경] Title로 필터링하고 ChunkIndex 순으로 정렬
+            // 2. 해당 Title의 청크 검색 및 정렬
             var chunks = _vectorStore
                             .Where(v => v.Title == selectedTitle)
                             .OrderBy(v => v.ChunkIndex)
                             .ToList();
 
-            try
+            // 3. MemoEdit에 표시 (StringBuilder 사용)
+            StringBuilder sb = new StringBuilder();
+
+            if (chunks.Count > 0)
             {
-                txtAttFile.Text = "";
+                sb.AppendLine($"[문서 정보]");
+                sb.AppendLine($"제목: {selectedTitle}");
+                sb.AppendLine($"총 청크 수: {chunks.Count}개");
+                sb.AppendLine(new string('-', 50));
+                sb.AppendLine();
 
-                if (chunks.Count > 0)
+                foreach (var chunk in chunks)
                 {
-                    txtAttFile.AppendText($"[Info]\nTitle: {selectedTitle}\nTotal Chunks: {chunks.Count}\n");
-                    txtAttFile.AppendText(new string('=', 50) + "\n\n");
+                    // 구분선 및 헤더
+                    sb.AppendLine($"--- Chunk #{chunk.ChunkIndex} ---");
 
-                    for (int i = 0; i < chunks.Count; i++)
-                    {
-                        // Chunk Index도 같이 표시
-                        txtAttFile.AppendText($"--- Chunk #{chunks[i].ChunkIndex} ---\n");
-                        txtAttFile.AppendText(chunks[i].TextChunk);
-                        txtAttFile.AppendText("\n\n");
-                    }
-                }
-                else
-                {
-                    txtAttFile.AppendText("데이터가 없습니다.");
+                    // 본문 내용
+                    sb.AppendLine(chunk.TextChunk);
+                    sb.AppendLine(); // 청크 간 공백
                 }
             }
-            finally
+            else
             {
+                sb.AppendLine("해당 문서의 저장된 내용을 찾을 수 없습니다.");
             }
+
+            // MemoEdit 업데이트
+            txtAttFile.Text = sb.ToString();
+
+            // 스크롤을 맨 위로 이동
+            txtAttFile.SelectionStart = 0;
+            txtAttFile.ScrollToCaret();
         }
 
         private void txtNumCtxGB_EditValueChanged(object sender, EventArgs e)
