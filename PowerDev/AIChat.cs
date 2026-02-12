@@ -203,6 +203,9 @@ CREATE TABLE IF NOT EXISTS DefaultSetting (
                             txtTemp.EditValue = reader["Temperature"];
                             txtNum_ctx.EditValue = reader["Num_ctx"];
                             chkUseRAG.Checked = reader["UseRAG"] != null && reader["UseRAG"].ToString() == "Y";
+
+                            if (int.TryParse(txtNum_ctx.EditValue == null ? "" : txtNum_ctx.EditValue.ToString(), out int vals))
+                                txtNumCtxGB.EditValue = (int)(vals / 1027);
                         }
                     }
                 }
@@ -307,6 +310,7 @@ UseRAG = excluded.UseRAG;";
                                         FileName = fileName,
                                         TextChunk = chunk,
                                         Vector = vector
+
                                     });
 
                                     // 리스트박스용 아이템 생성 (아직 목록에 없으면)
@@ -555,6 +559,7 @@ UseRAG = excluded.UseRAG;";
                 currentNode = map[currentNode.ParentId];
                 if (safetyLoop++ > 100) break; // 무한루프 방지
             }
+
 
             return currentNode;
         }
@@ -993,6 +998,7 @@ Analyze the provided [Context] using your professional programming knowledge.
 
                 // ─────────────────────────────────────────────────────────────
                 // 스마트 검색: AI에게 줄 '재료'를 유연하게 찾는 단계
+
                 // ─────────────────────────────────────────────────────────────
                 bool isSearchNeeded = chkUseRAG.Checked;
                 string retrievedContext = "";
@@ -1300,7 +1306,6 @@ Analyze the provided [Context] using your professional programming knowledge.
                 // [수정] 토큰 전달
                 var response = await client.PostAsync(EMBED_URL, content, token);
 
-
                 if (!response.IsSuccessStatusCode) return null;
                 var body = await response.Content.ReadAsStringAsync();
                 var result = JsonSerializer.Deserialize<OllamaEmbeddingResponse>(body);
@@ -1381,6 +1386,7 @@ Analyze the provided [Context] using your professional programming knowledge.
 
         private async Task<OllamaResponse> CallOllamaSingleAsync(string modelName, string systemPrompt, string userPrompt, string base64Image = null, CancellationToken token = default)
         {
+
             var messages = new List<object>();
             if (!string.IsNullOrWhiteSpace(systemPrompt)) messages.Add(new { role = "system", content = systemPrompt });
             messages.Add(new { role = "user", content = userPrompt, images = base64Image != null ? new[] { base64Image } : null });
@@ -1912,7 +1918,6 @@ Analyze the provided [Context] using your professional programming knowledge.
             {
                 Debug.WriteLine($"레지스트리 읽기 실패: {ex.Message}");
             }
-
 
             // 레지스트리 실패 시 기존 WMI 방식 Fallback (4095MB로 나오더라도 없는 것보단 나음)
             return GetTotalVideoMemory();
