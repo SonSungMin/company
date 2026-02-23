@@ -751,6 +751,10 @@ UseRAG = excluded.UseRAG;";
 
                             chunkIndex++;
 
+                            // [수정] 마지막 부분 처리: 현재 청크가 텍스트의 끝까지 도달했다면 루프 종료
+                            if (i + length >= newFullText.Length)
+                                break;
+
                             // 다음 시작 지점 계산 (오버랩 적용)
                             int nextStart = i + length - overlap;
 
@@ -782,7 +786,6 @@ UseRAG = excluded.UseRAG;";
 
                 LoadVectorsFromDb();
                 MessageBox.Show($"동기화 완료!\n- 신규: {insertCount}\n- 업데이트: {updateCount}");
-
             }
             catch (Exception ex)
             {
@@ -1000,7 +1003,8 @@ Convert natural language intent into potential technical keywords (English/Korea
                     options = new
                     {
                         temperature = 0.1, // 낮을수록 지시를 더 잘 따름
-                        num_predict = 30    // 길게 말하지 못하게 제한
+                        num_predict = 30,   // 길게 말하지 못하게 제한
+                        num_ctx = 1024
                     }
                 };
 
@@ -1055,21 +1059,18 @@ Convert natural language intent into potential technical keywords (English/Korea
                     return;
                 }
 
-                string strictSystemPrompt = @"You are a Senior Full-Stack Engineer and Database Expert.
-Analyze the provided [Context] using your professional programming knowledge.
+                string systemPrompt = @"Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. 
+Return only your response to the question given the above information following the users instructions as needed.";
+                
+                if (chkUsePrompt.Checked)
+                    systemPrompt = txtSystemPrompt.Text;
 
-### GUIDELINES:
-1. **Semantic Analysis:** Do not just look for keywords. Interpret the code structure (SQL, C#, etc.) to identify technical objects like Procedures, Tables, and Functions based on their syntax and usage.
-2. **Confident Inference:** If the code pattern (e.g., BEGIN...END, Method calls) implies a specific technical entity, treat it as such and explain it to the user.
-3. **Fact-Based:** While you should infer meaning, do not invent names or logic that have no basis in the provided snippets.
-4. **Professionalism:** Provide technical insights that a developer would find useful.
-5. **Language:** Answer strictly in Professional Korean.";
-
-                string generalSystemPrompt = @"You are a helpful AI Assistant. Answer strictly in Professional Korean.";
+                systemPrompt += @"
+**Language:** Answer strictly in Professional Korean.";
 
                 if (_chatHistory.Count == 0)
                 {
-                    _chatHistory.Add(new { role = "system", content = generalSystemPrompt });
+                    _chatHistory.Add(new { role = "system", content = systemPrompt });
                 }
 
                 bool isSearchNeeded = chkUseRAG.Checked;
@@ -1139,7 +1140,7 @@ Analyze the provided [Context] using your professional programming knowledge.
                 string finalUserMessage = isContextFound ? $"[Context]\n{retrievedContext}\n\n[User Question]\n{userPrompt}" : userPrompt;
 
                 if (_chatHistory.Count > 0)
-                    _chatHistory[0] = new { role = "system", content = isContextFound ? strictSystemPrompt : generalSystemPrompt };
+                    _chatHistory[0] = new { role = "system", content = systemPrompt };
 
                 PrintUserMessage(userPrompt, isContextFound);
                 _chatHistory.Add(new { role = "user", content = finalUserMessage });
@@ -1230,7 +1231,6 @@ Analyze the provided [Context] using your professional programming knowledge.
                     // ─────────────────────────────────────────────────────────────
                     // [추가] 3. RAG 포함 여부 및 시스템 프롬프트 확인
                     // ─────────────────────────────────────────────────────────────
-                    bool isRagIncluded = false;
                     int ragLength = 0;
                     bool systemFound = false;
 
@@ -1254,11 +1254,10 @@ Analyze the provided [Context] using your professional programming knowledge.
                                 // BtnAnalyze_Click에서 "[지식베이스 참고]:" 문자열을 추가했는지 확인
                                 if (roleStr == "user")
                                 {
-                                    if (contentStr.Contains("[지식베이스 참고]"))
+                                    if (chkUseRAG.Checked)
                                     {
-                                        isRagIncluded = true;
                                         // 참고 자료의 대략적인 길이 계산
-                                        int startIdx = contentStr.IndexOf("[지식베이스 참고]:");
+                                        int startIdx = contentStr.IndexOf("[참조된 지식]:");
                                         int endIdx = contentStr.IndexOf("[사용자 질문]:");
                                         if (endIdx > startIdx)
                                         {
@@ -1274,7 +1273,7 @@ Analyze the provided [Context] using your professional programming knowledge.
 
                     // RAG 검증 결과 출력
                     doc.AppendText("\n[RAG Context Verification]\n");
-                    if (isRagIncluded)
+                    if (chkUseRAG.Checked)
                     {
                         DocumentRange range = doc.AppendText($"• Status: INCLUDED ✅ (Length: {ragLength} chars)\n");
                         // 녹색으로 강조
@@ -1329,7 +1328,6 @@ Analyze the provided [Context] using your professional programming knowledge.
             CharacterProperties cpRole = doc.BeginUpdateCharacters(roleRange);
             cpRole.Bold = true;
             cpRole.ForeColor = Color.Blue;
-
             doc.EndUpdateCharacters(cpRole);
 
             doc.AppendText("\r\n");
