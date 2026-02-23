@@ -1032,123 +1032,175 @@ Convert natural language intent into potential technical keywords (English/Korea
                 try { _cts.Cancel(); } catch (ObjectDisposedException) { }
                 return;
             }
-
+        
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
             Stopwatch sw = Stopwatch.StartNew();
-
+        
             try
             {
                 btnAnalyze.Text = "중단";
                 btnAnalyze.ImageOptions.Image = imgStopStart.Images[0];
                 this.Cursor = Cursors.WaitCursor;
-
+        
                 if (mproAiThink != null)
                 {
                     layAiThink.Visibility = DevExpress.XtraLayout.Utils.LayoutVisibility.Always;
                     mproAiThink.Properties.Stopped = false;
                 }
-
+        
                 var content = ExtractContentFromRichEdit();
                 string userPrompt = content.Text;
                 string base64Image = content.ImageBase64;
-
+        
                 if (string.IsNullOrWhiteSpace(userPrompt) && string.IsNullOrEmpty(base64Image))
                 {
                     MessageBox.Show("질문을 입력하세요.");
                     return;
                 }
-
+        
                 string systemPrompt = @"Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. 
-Return only your response to the question given the above information following the users instructions as needed.";
+        Return only your response to the question given the above information following the users instructions as needed.";
                 
                 if (chkUsePrompt.Checked)
                     systemPrompt = txtSystemPrompt.Text;
-
+        
                 systemPrompt += @"
-**Language:** Answer strictly in Professional Korean.";
-
+        **Language:** Answer strictly in Professional Korean.";
+        
                 if (_chatHistory.Count == 0)
                 {
                     _chatHistory.Add(new { role = "system", content = systemPrompt });
                 }
-
+        
                 bool isSearchNeeded = chkUseRAG.Checked;
                 string retrievedContext = "";
                 bool isContextFound = false;
                 List<string> references = new List<string>();
-
+        
                 txtResultInfo.Document.Text = "";
-
+        
                 if (isSearchNeeded && _vectorStore.Count > 0)
                 {
                     lblStatus.Text = "지식 베이스 분석 중...";
-
+        
                     // [STEP 1] 단순 명사 추출 및 검색어 확장
                     string expandedKeywords = await ExpandQueryWithAIAsync(userPrompt, token);
                     string combinedQuery = $"{userPrompt} {expandedKeywords}";
-
+        
                     txtResultInfo.Document.AppendText("-----최종 쿼리-----\r\n");
                     txtResultInfo.Document.AppendText($"{combinedQuery}\r\n");
                     txtResultInfo.Document.AppendText("-------------------\r\n");
-
-                    // [STEP 2] 하이브리드 검색 (Vector + Keyword)
+        
+                    // ─────────────────────────────────────────────────────────────
+                    // [STEP 2] RRF (Reciprocal Rank Fusion) 기반 하이브리드 검색 적용
+                    // ─────────────────────────────────────────────────────────────
+                    
+                    // 1. 벡터 검색 실행
                     var vectorResults = new List<dynamic>();
                     var queryVector = await GetEmbeddingAsync(userPrompt, token);
-
+        
                     if (queryVector != null)
                     {
                         vectorResults = _vectorStore
                             .Select(v => new { Chunk = v, Score = CosineSimilarity(queryVector, v.Vector) })
-                            .Where(x => x.Score > 0.25)
+                            .Where(x => x.Score > 0.25) // 최소 유사도 임계값
                             .OrderByDescending(x => x.Score)
-                            .Take(5)
+                            .Take(20) // RRF를 위해 충분한 후보군 확보 (5 -> 20)
                             .Select(x => (dynamic)new { x.Chunk, Score = x.Score, Type = "Vector" })
                             .ToList();
                     }
-
-                    var keywordResults = SearchByKeyword(combinedQuery);
-                    foreach (var kwItem in keywordResults)
+        
+                    // 2. 키워드 검색 실행
+                    var keywordResults = SearchByKeyword(combinedQuery); // 내부적으로 상위 5~10개 리턴 가정
+        
+                    // 3. RRF 점수 계산
+                    var rrfScores = new Dictionary<VectorData, double>();
+                    int rrfK = 60; // RRF 상수 (일반적으로 60 사용)
+        
+                    // 벡터 결과 점수 합산
+                    for (int i = 0; i < vectorResults.Count; i++)
                     {
-                        // [수정] FileName -> Title 로 변경
-                        // 키워드 검색 결과가 벡터 검색 결과에 이미 있는지 확인 (Title과 TextChunk 기준)
-                        if (!vectorResults.Any(v => v.Chunk.Title == kwItem.Chunk.Title && v.Chunk.TextChunk == kwItem.Chunk.TextChunk))
-                        {
-                            vectorResults.Add(new { Chunk = kwItem.Chunk, Score = kwItem.Score, Type = "Keyword" });
-                        }
+                        var doc = (VectorData)vectorResults[i].Chunk;
+                        if (!rrfScores.ContainsKey(doc)) rrfScores[doc] = 0;
+                        rrfScores[doc] += 1.0 / (rrfK + i + 1);
                     }
-
-                    // [STEP 3] 최종 결과 통합
-                    var finalResults = vectorResults.OrderByDescending(x => x.Score).Take(5).ToList();
-
+        
+                    // 키워드 결과 점수 합산
+                    for (int i = 0; i < keywordResults.Count; i++)
+                    {
+                        var doc = (VectorData)keywordResults[i].Chunk;
+                        if (!rrfScores.ContainsKey(doc)) rrfScores[doc] = 0;
+                        rrfScores[doc] += 1.0 / (rrfK + i + 1);
+                    }
+        
+                    // 4. 최종 순위 결정 (상위 5개)
+                    var finalResults = rrfScores
+                        .OrderByDescending(kvp => kvp.Value)
+                        .Take(5)
+                        .Select(kvp => new { Chunk = kvp.Key, Score = kvp.Value })
+                        .ToList();
+        
+                    // ─────────────────────────────────────────────────────────────
+                    // [STEP 3] Small-to-Big Retrieval (문맥 확장) 적용
+                    // ─────────────────────────────────────────────────────────────
                     if (finalResults.Count > 0)
                     {
                         isContextFound = true;
                         StringBuilder sb = new StringBuilder();
+                        
+                        // 중복 문맥 처리를 방지하기 위한 집합 (Key: Title_ChunkIndex)
+                        HashSet<string> processedChunks = new HashSet<string>();
+        
                         foreach (var item in finalResults)
                         {
-                            // [수정] FileName -> Title 로 변경 (문서 소스 표시)
-                            sb.AppendLine($"<doc source='{item.Chunk.Title}'>\n{item.Chunk.TextChunk}\n</doc>");
-
-                            string refInfo = ExtractReferenceInfo(item.Chunk.TextChunk);
+                            VectorData hitChunk = item.Chunk;
+                            string title = hitChunk.Title;
+                            int hitIndex = hitChunk.ChunkIndex;
+        
+                            // 이미 처리된 청크라면 건너뜀 (중복 방지)
+                            if (processedChunks.Contains($"{title}_{hitIndex}")) continue;
+        
+                            // ★ Small-to-Big: 적중한 청크의 앞(-1)과 뒤(+1) 청크를 찾아 문맥 확장
+                            // (앞뒤 청크 범위를 늘리고 싶다면 -1, +1을 -2, +2 등으로 변경하세요)
+                            var expandedContext = _vectorStore
+                                .Where(v => v.Title == title && 
+                                            v.ChunkIndex >= hitIndex - 1 && 
+                                            v.ChunkIndex <= hitIndex + 1)
+                                .OrderBy(v => v.ChunkIndex)
+                                .ToList();
+        
+                            StringBuilder contextBuilder = new StringBuilder();
+                            foreach (var ctx in expandedContext)
+                            {
+                                contextBuilder.AppendLine(ctx.TextChunk);
+                                
+                                // 확장된 문맥에 포함된 청크들도 처리된 것으로 마킹
+                                processedChunks.Add($"{title}_{ctx.ChunkIndex}");
+                            }
+        
+                            // LLM에게 전달할 최종 텍스트 구성
+                            sb.AppendLine($"<doc source='{title}'>\n{contextBuilder.ToString().Trim()}\n</doc>");
+        
+                            string refInfo = ExtractReferenceInfo(hitChunk.TextChunk);
                             if (!references.Contains(refInfo)) references.Add(refInfo);
                         }
                         retrievedContext = sb.ToString();
                     }
                 }
-
+        
                 string finalUserMessage = isContextFound ? $"[Context]\n{retrievedContext}\n\n[User Question]\n{userPrompt}" : userPrompt;
-
+        
                 if (_chatHistory.Count > 0)
                     _chatHistory[0] = new { role = "system", content = systemPrompt };
-
+        
                 PrintUserMessage(userPrompt, isContextFound);
                 _chatHistory.Add(new { role = "user", content = finalUserMessage });
-
+        
                 lblStatus.Text = "답변 생성 중...";
                 var result = await CallOllamaHistoryAsync(BRAIN_MODEL, _chatHistory, token);
                 sw.Stop();
-
+        
                 if (result.IsSuccess)
                 {
                     StringBuilder finalResponse = new StringBuilder(result.ResponseText);
@@ -1158,11 +1210,11 @@ Return only your response to the question given the above information following 
                         for (int i = 0; i < references.Count; i++)
                             finalResponse.AppendLine($"{i + 1}. {references[i]}");
                     }
-
+        
                     string responseWithRef = finalResponse.ToString();
                     _chatHistory.Add(new { role = "assistant", content = responseWithRef });
                     PrintChatMessage("AI", responseWithRef);
-
+        
                     PrintExecutionTime(sw.Elapsed);
                     PrintTokenUsage(result.PromptEvalCount, result.EvalCount);
                     PrintGenerationInfo(result);
