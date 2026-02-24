@@ -397,12 +397,12 @@ UseRAG = excluded.UseRAG;";
         // RAG 데이터 상태 표시
         private void UpdateFileContDisplay()
         {
-            if (txtAttFile == null) return;
+            if (txtRAGContents == null) return;
 
             // 선택된 항목이 없을 때는 안내 문구만 표시
             if (lstFiles.SelectedIndex == -1)
             {
-                txtAttFile.Text = $"[RAG Knowledge Base]\nTotal Chunks: {_vectorStore.Count}\n\n(목록을 클릭하면 해당 파일의 상세 내용이 표시됩니다)";
+                txtRAGContents.Text = $"[RAG Knowledge Base]\nTotal Chunks: {_vectorStore.Count}\n\n(목록을 클릭하면 해당 파일의 상세 내용이 표시됩니다)";
             }
         }
 
@@ -432,9 +432,86 @@ UseRAG = excluded.UseRAG;";
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void btnRAGSave_Click(object sender, EventArgs e)
+        private async void btnRAGSave_Click(object sender, EventArgs e)
         {
-            
+            string title = txtRAGTitle.Text.Trim();
+            string rawContent = txtRAGContents.Text; // 수정된 전체 텍스트
+
+            if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(rawContent))
+            {
+                MessageBox.Show("제목과 내용을 입력해주세요.");
+                return;
+            }
+
+            this.Cursor = Cursors.WaitCursor;
+            lblStatus.Text = "데이터 정제 및 저장 중...";
+
+            try
+            {
+                // 2. 기존 데이터 삭제 (Title 기준)
+                DeleteFileFromDb(title);
+
+                // 3. [기존 로직 활용] 기존에 구현된 청킹 방식 그대로 적용
+                // 여기서는 기존 코드(ProcessFilesToVectorStoreAsync)의 알고리즘을 그대로 따릅니다.
+                int chunkSize = 500;
+                int overlap = 50;
+                int i = 0;
+                int chunkIndex = 0;
+
+                while (i < rawContent.Length)
+                {
+                    int length = Math.Min(chunkSize, rawContent.Length - i);
+
+                    // 기존 코드의 분할 지점 최적화 로직 (줄바꿈/공백 기준)
+                    if (i + length < rawContent.Length)
+                    {
+                        int lastNewLine = rawContent.LastIndexOf('\n', i + length, Math.Min(length, 150));
+                        if (lastNewLine > i) length = lastNewLine - i;
+                        else
+                        {
+                            int lastSpace = rawContent.LastIndexOf(' ', i + length, Math.Min(length, 150));
+                            if (lastSpace > i) length = lastSpace - i;
+                        }
+                    }
+
+                    string chunkText = rawContent.Substring(i, length).Trim();
+
+                    if (!string.IsNullOrEmpty(chunkText))
+                    {
+                        // 기존 GetEmbeddingAsync와 SaveVectorToDb를 활용
+                        var embedding = await GetEmbeddingAsync(chunkText);
+                        if (embedding != null)
+                        {
+                            SaveVectorToDb(title, chunkIndex, chunkText, embedding);
+                        }
+                    }
+
+                    chunkIndex++;
+
+                    // 기존 코드의 다음 시작점 계산 로직 (오버랩 적용)
+                    int nextStart = i + length - overlap;
+                    if (nextStart < rawContent.Length)
+                    {
+                        int startNewLine = rawContent.LastIndexOf('\n', nextStart, Math.Min(nextStart - i, overlap + 50));
+                        if (startNewLine > i) nextStart = startNewLine + 1;
+                    }
+                    if (nextStart <= i) nextStart = i + 1;
+
+                    i = nextStart;
+                }
+
+                MessageBox.Show("저장 완료", "알림", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                LoadVectorsFromDb(); // 목록 갱신
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"저장 오류: {ex.Message}");
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+                lblStatus.Text = "대기";
+            }
         }
 
         /// <summary>
@@ -494,65 +571,32 @@ UseRAG = excluded.UseRAG;";
                         continue;
 
                     string content = File.ReadAllText(filePath);
-                    int chunkSize = 500;
-                    int overlap = 50;
 
                     // UI 리스트에 추가
                     lstFiles.Items.Add(new FileListItem { Title = title, DisplayText = title });
 
                     int i = 0;
-                    int chunkIndex = 0; // 순서 번호
 
                     while (i < content.Length)
                     {
-                        // [이전과 동일] 줄바꿈/공백 기준 자르기 로직
-                        int length = Math.Min(chunkSize, content.Length - i);
-
-                        if (i + length < content.Length)
+                        var chunkTexts = CreateChunksFromText(content);
+                        for (int chunkIndex = 0; chunkIndex < chunkTexts.Count; chunkIndex++)
                         {
-                            int lastNewLine = content.LastIndexOf('\n', i + length, Math.Min(length, 150));
-                            if (lastNewLine > i) length = lastNewLine - i;
-                            else
-                            {
-                                int lastSpace = content.LastIndexOf(' ', i + length, Math.Min(length, 150));
-                                if (lastSpace > i) length = lastSpace - i;
-                            }
-                        }
-
-                        string chunkText = content.Substring(i, length).Trim();
-
-                        if (!string.IsNullOrEmpty(chunkText))
-                        {
-                            var embedding = await GetEmbeddingAsync(chunkText);
+                            var embedding = await GetEmbeddingAsync(chunkTexts[chunkIndex]);
                             if (embedding != null)
                             {
-                                // [변경] Title을 저장
-
                                 if (chkSaveDB.Checked)
-                                    SaveVectorToDb(title, chunkIndex, chunkText, embedding);
+                                    SaveVectorToDb(title, chunkIndex, chunkTexts[chunkIndex], embedding);
 
                                 _vectorStore.Add(new VectorData
                                 {
                                     Title = title,
                                     ChunkIndex = chunkIndex,
-                                    TextChunk = chunkText,
+                                    TextChunk = chunkTexts[chunkIndex],
                                     Vector = embedding
                                 });
                             }
                         }
-
-                        chunkIndex++; // 순서 증가
-
-                        // [이전과 동일] 다음 시작점 계산 (앞쪽 줄바꿈 맞춤)
-                        int nextStart = i + length - overlap;
-                        if (nextStart < content.Length)
-                        {
-                            int startNewLine = content.LastIndexOf('\n', nextStart, Math.Min(nextStart - i, overlap + 50));
-                            if (startNewLine > i) nextStart = startNewLine + 1;
-                        }
-                        if (nextStart <= i) nextStart = i + 1;
-
-                        i = nextStart;
                     }
                 }
             }
@@ -565,6 +609,50 @@ UseRAG = excluded.UseRAG;";
                 this.Cursor = Cursors.Default;
                 lblStatus.Text = "완료";
             }
+        }
+
+        // 기존 ProcessFilesToVectorStoreAsync의 로직을 그대로 가져온 공통 함수
+        private List<string> CreateChunksFromText(string content)
+        {
+            List<string> chunks = new List<string>();
+            int chunkSize = 500; // 기존 코드 설정값
+            int overlap = 50;    // 기존 코드 설정값
+            int i = 0;
+
+            while (i < content.Length)
+            {
+                int length = Math.Min(chunkSize, content.Length - i);
+
+                // 줄바꿈/공백 기준 자르기 (기존 로직 유지)
+                if (i + length < content.Length)
+                {
+                    int lastNewLine = content.LastIndexOf('\n', i + length, Math.Min(length, 150));
+                    if (lastNewLine > i) length = lastNewLine - i;
+                    else
+                    {
+                        int lastSpace = content.LastIndexOf(' ', i + length, Math.Min(length, 150));
+                        if (lastSpace > i) length = lastSpace - i;
+                    }
+                }
+
+                string chunkText = content.Substring(i, length).Trim();
+                if (!string.IsNullOrEmpty(chunkText))
+                {
+                    chunks.Add(chunkText);
+                }
+
+                // 다음 시작점 계산 (기존 로직 유지)
+                int nextStart = i + length - overlap;
+                if (nextStart < content.Length)
+                {
+                    int startNewLine = content.LastIndexOf('\n', nextStart, Math.Min(nextStart - i, overlap + 50));
+                    if (startNewLine > i) nextStart = startNewLine + 1;
+                }
+                if (nextStart <= i) nextStart = i + 1;
+
+                i = nextStart;
+            }
+            return chunks;
         }
 
         private void SaveVectorToDb(string title, int chunkIndex, string textChunk, double[] vector)
@@ -630,7 +718,6 @@ UseRAG = excluded.UseRAG;";
                 {
                     sourceConn.Open();
                     string sql = "SELECT ID, PARENTID, CODE, CODEDESC FROM codesnippet";
-
                     using (var cmd = new SQLiteCommand(sql, sourceConn))
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -677,7 +764,9 @@ UseRAG = excluded.UseRAG;";
                         while (title.Contains("  ")) title = title.Replace("  ", " ");
 
                         StringBuilder sb = new StringBuilder();
-                        if (!string.IsNullOrWhiteSpace(categoryPath)) sb.AppendLine($"[분류] {categoryPath}");
+                        if (!string.IsNullOrWhiteSpace(categoryPath)) 
+                            sb.AppendLine($"[분류] {categoryPath}");
+
                         sb.AppendLine($"[제목] {node.Code}");
                         sb.AppendLine($"[설명] {node.Desc}");
 
@@ -1970,9 +2059,11 @@ Contents = excluded.Contents;";
             // 선택 해제 시
             if (lstFiles.SelectedIndex == -1)
             {
-                txtAttFile.Text = "";
+                txtRAGContents.Text = "";
                 return;
             }
+
+            tabChunks.SelectedTabPageIndex = 0;
 
             // 1. 선택된 Title 가져오기
             string selectedTitle = "";
@@ -1991,23 +2082,29 @@ Contents = excluded.Contents;";
 
             // 3. MemoEdit에 표시 (StringBuilder 사용)
             StringBuilder sb = new StringBuilder();
+            StringBuilder sb_chunks = new StringBuilder();
 
             if (chunks.Count > 0)
             {
-                sb.AppendLine($"[문서 정보]");
-                sb.AppendLine($"제목: {selectedTitle}");
-                sb.AppendLine($"총 청크 수: {chunks.Count}개");
-                sb.AppendLine(new string('-', 50));
-                sb.AppendLine();
+
+                sb_chunks.AppendLine($"[문서 정보]");
+                sb_chunks.AppendLine($"제목: {selectedTitle}");
+                sb_chunks.AppendLine($"총 청크 수: {chunks.Count}개");
+                sb_chunks.AppendLine(new string('-', 50));
+                sb_chunks.AppendLine();
+
+                txtRAGTitle.Text = selectedTitle;
 
                 foreach (var chunk in chunks)
                 {
                     // 구분선 및 헤더
-                    sb.AppendLine($"--- Chunk #{chunk.ChunkIndex} ---");
+                    sb_chunks.AppendLine($"--- Chunk #{chunk.ChunkIndex} ---");
 
                     // 본문 내용
                     sb.AppendLine(chunk.TextChunk);
-                    sb.AppendLine(); // 청크 간 공백
+
+                    sb_chunks.AppendLine(chunk.TextChunk);
+                    sb_chunks.AppendLine(); // 청크 간 공백
                 }
             }
             else
@@ -2016,11 +2113,15 @@ Contents = excluded.Contents;";
             }
 
             // MemoEdit 업데이트
-            txtAttFile.Text = sb.ToString();
+            txtRAGContents.Text = sb.ToString();
+            txtChunk.Text = sb_chunks.ToString();
 
             // 스크롤을 맨 위로 이동
-            txtAttFile.SelectionStart = 0;
-            txtAttFile.ScrollToCaret();
+            txtRAGContents.SelectionStart = 0;
+            txtRAGContents.ScrollToCaret();
+
+            txtChunk.SelectionStart = 0;
+            txtChunk.ScrollToCaret();
         }
 
         private void txtNumCtxGB_EditValueChanged(object sender, EventArgs e)
