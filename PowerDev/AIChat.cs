@@ -427,7 +427,22 @@ UseRAG = excluded.UseRAG;";
             }
         }
 
-        private void btnRemoveFile_Click(object sender, EventArgs e)
+        /// <summary>
+        /// RAG 저장
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnRAGSave_Click(object sender, EventArgs e)
+        {
+            
+        }
+
+        /// <summary>
+        /// RAG 삭제
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnRAGDel_Click(object sender, EventArgs e)
         {
             if (lstFiles.SelectedItems.Count > 0)
             {
@@ -456,7 +471,7 @@ UseRAG = excluded.UseRAG;";
 
         public async void btnImportCodeSnippet_Click(object sender, EventArgs e)
         {
-            if(MessageBox.Show("업무 메모를 RAG에 동기화합니다.", "확인", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            if (MessageBox.Show("업무 메모를 RAG에 동기화합니다.", "확인", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 await ImportSnippetsFromDbAsync();
         }
 
@@ -512,6 +527,7 @@ UseRAG = excluded.UseRAG;";
                             if (embedding != null)
                             {
                                 // [변경] Title을 저장
+
                                 if (chkSaveDB.Checked)
                                     SaveVectorToDb(title, chunkIndex, chunkText, embedding);
 
@@ -556,7 +572,7 @@ UseRAG = excluded.UseRAG;";
             using (var conn = new SQLiteConnection(DB_CONNECTION_STRING))
             {
                 conn.Open();
-                
+
                 string sql = "INSERT INTO VectorStore (Title, ChunkIndex, TextChunk, VectorJson) VALUES (@title, @idx, @tc, @vj)";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -614,6 +630,7 @@ UseRAG = excluded.UseRAG;";
                 {
                     sourceConn.Open();
                     string sql = "SELECT ID, PARENTID, CODE, CODEDESC FROM codesnippet";
+
                     using (var cmd = new SQLiteCommand(sql, sourceConn))
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -896,7 +913,8 @@ Output ONLY one word: CHAT or SEARCH.";
             string[] josa = { "은", "는", "이", "가", "을", "를", "에", "의", "로", "과", "와", "에서", "으로" };
 
             var keywords = userQuery.Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                                    .Select(k => {
+                                    .Select(k =>
+                                    {
                                         string clean = k;
                                         foreach (var j in josa)
                                         {
@@ -1032,74 +1050,74 @@ Convert natural language intent into potential technical keywords (English/Korea
                 try { _cts.Cancel(); } catch (ObjectDisposedException) { }
                 return;
             }
-        
+
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
             Stopwatch sw = Stopwatch.StartNew();
-        
+
             try
             {
                 btnAnalyze.Text = "중단";
                 btnAnalyze.ImageOptions.Image = imgStopStart.Images[0];
                 this.Cursor = Cursors.WaitCursor;
-        
+
                 if (mproAiThink != null)
                 {
                     layAiThink.Visibility = DevExpress.XtraLayout.Utils.LayoutVisibility.Always;
                     mproAiThink.Properties.Stopped = false;
                 }
-        
+
                 var content = ExtractContentFromRichEdit();
                 string userPrompt = content.Text;
                 string base64Image = content.ImageBase64;
-        
+
                 if (string.IsNullOrWhiteSpace(userPrompt) && string.IsNullOrEmpty(base64Image))
                 {
                     MessageBox.Show("질문을 입력하세요.");
                     return;
                 }
-        
+
                 string systemPrompt = @"Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. 
-        Return only your response to the question given the above information following the users instructions as needed.";
-                
+Return only your response to the question given the above information following the users instructions as needed.";
+
                 if (chkUsePrompt.Checked)
                     systemPrompt = txtSystemPrompt.Text;
-        
+
                 systemPrompt += @"
-        **Language:** Answer strictly in Professional Korean.";
-        
+**Language:** Answer strictly in Professional Korean.";
+
                 if (_chatHistory.Count == 0)
                 {
                     _chatHistory.Add(new { role = "system", content = systemPrompt });
                 }
-        
+
                 bool isSearchNeeded = chkUseRAG.Checked;
                 string retrievedContext = "";
                 bool isContextFound = false;
                 List<string> references = new List<string>();
-        
+
                 txtResultInfo.Document.Text = "";
-        
+
                 if (isSearchNeeded && _vectorStore.Count > 0)
                 {
                     lblStatus.Text = "지식 베이스 분석 중...";
-        
+
                     // [STEP 1] 단순 명사 추출 및 검색어 확장
                     string expandedKeywords = await ExpandQueryWithAIAsync(userPrompt, token);
                     string combinedQuery = $"{userPrompt} {expandedKeywords}";
-        
+
                     txtResultInfo.Document.AppendText("-----최종 쿼리-----\r\n");
                     txtResultInfo.Document.AppendText($"{combinedQuery}\r\n");
                     txtResultInfo.Document.AppendText("-------------------\r\n");
-        
+
                     // ─────────────────────────────────────────────────────────────
                     // [STEP 2] RRF (Reciprocal Rank Fusion) 기반 하이브리드 검색 적용
                     // ─────────────────────────────────────────────────────────────
-                    
+
                     // 1. 벡터 검색 실행
                     var vectorResults = new List<dynamic>();
                     var queryVector = await GetEmbeddingAsync(userPrompt, token);
-        
+
                     if (queryVector != null)
                     {
                         vectorResults = _vectorStore
@@ -1110,14 +1128,14 @@ Convert natural language intent into potential technical keywords (English/Korea
                             .Select(x => (dynamic)new { x.Chunk, Score = x.Score, Type = "Vector" })
                             .ToList();
                     }
-        
+
                     // 2. 키워드 검색 실행
                     var keywordResults = SearchByKeyword(combinedQuery); // 내부적으로 상위 5~10개 리턴 가정
-        
+
                     // 3. RRF 점수 계산
                     var rrfScores = new Dictionary<VectorData, double>();
                     int rrfK = 60; // RRF 상수 (일반적으로 60 사용)
-        
+
                     // 벡터 결과 점수 합산
                     for (int i = 0; i < vectorResults.Count; i++)
                     {
@@ -1125,7 +1143,7 @@ Convert natural language intent into potential technical keywords (English/Korea
                         if (!rrfScores.ContainsKey(doc)) rrfScores[doc] = 0;
                         rrfScores[doc] += 1.0 / (rrfK + i + 1);
                     }
-        
+
                     // 키워드 결과 점수 합산
                     for (int i = 0; i < keywordResults.Count; i++)
                     {
@@ -1133,14 +1151,14 @@ Convert natural language intent into potential technical keywords (English/Korea
                         if (!rrfScores.ContainsKey(doc)) rrfScores[doc] = 0;
                         rrfScores[doc] += 1.0 / (rrfK + i + 1);
                     }
-        
+
                     // 4. 최종 순위 결정 (상위 5개)
                     var finalResults = rrfScores
                         .OrderByDescending(kvp => kvp.Value)
                         .Take(5)
                         .Select(kvp => new { Chunk = kvp.Key, Score = kvp.Value })
                         .ToList();
-        
+
                     // ─────────────────────────────────────────────────────────────
                     // [STEP 3] Small-to-Big Retrieval (문맥 확장) 적용
                     // ─────────────────────────────────────────────────────────────
@@ -1148,59 +1166,59 @@ Convert natural language intent into potential technical keywords (English/Korea
                     {
                         isContextFound = true;
                         StringBuilder sb = new StringBuilder();
-                        
+
                         // 중복 문맥 처리를 방지하기 위한 집합 (Key: Title_ChunkIndex)
                         HashSet<string> processedChunks = new HashSet<string>();
-        
+
                         foreach (var item in finalResults)
                         {
                             VectorData hitChunk = item.Chunk;
                             string title = hitChunk.Title;
                             int hitIndex = hitChunk.ChunkIndex;
-        
+
                             // 이미 처리된 청크라면 건너뜀 (중복 방지)
                             if (processedChunks.Contains($"{title}_{hitIndex}")) continue;
-        
+
                             // ★ Small-to-Big: 적중한 청크의 앞(-1)과 뒤(+1) 청크를 찾아 문맥 확장
                             // (앞뒤 청크 범위를 늘리고 싶다면 -1, +1을 -2, +2 등으로 변경하세요)
                             var expandedContext = _vectorStore
-                                .Where(v => v.Title == title && 
-                                            v.ChunkIndex >= hitIndex - 1 && 
+                                .Where(v => v.Title == title &&
+                                            v.ChunkIndex >= hitIndex - 1 &&
                                             v.ChunkIndex <= hitIndex + 1)
                                 .OrderBy(v => v.ChunkIndex)
                                 .ToList();
-        
+
                             StringBuilder contextBuilder = new StringBuilder();
                             foreach (var ctx in expandedContext)
                             {
                                 contextBuilder.AppendLine(ctx.TextChunk);
-                                
+
                                 // 확장된 문맥에 포함된 청크들도 처리된 것으로 마킹
                                 processedChunks.Add($"{title}_{ctx.ChunkIndex}");
                             }
-        
+
                             // LLM에게 전달할 최종 텍스트 구성
                             sb.AppendLine($"<doc source='{title}'>\n{contextBuilder.ToString().Trim()}\n</doc>");
-        
+
                             string refInfo = ExtractReferenceInfo(hitChunk.TextChunk);
                             if (!references.Contains(refInfo)) references.Add(refInfo);
                         }
                         retrievedContext = sb.ToString();
                     }
                 }
-        
+
                 string finalUserMessage = isContextFound ? $"[Context]\n{retrievedContext}\n\n[User Question]\n{userPrompt}" : userPrompt;
-        
+
                 if (_chatHistory.Count > 0)
                     _chatHistory[0] = new { role = "system", content = systemPrompt };
-        
+
                 PrintUserMessage(userPrompt, isContextFound);
                 _chatHistory.Add(new { role = "user", content = finalUserMessage });
-        
+
                 lblStatus.Text = "답변 생성 중...";
                 var result = await CallOllamaHistoryAsync(BRAIN_MODEL, _chatHistory, token);
                 sw.Stop();
-        
+
                 if (result.IsSuccess)
                 {
                     StringBuilder finalResponse = new StringBuilder(result.ResponseText);
@@ -1210,11 +1228,11 @@ Convert natural language intent into potential technical keywords (English/Korea
                         for (int i = 0; i < references.Count; i++)
                             finalResponse.AppendLine($"{i + 1}. {references[i]}");
                     }
-        
+
                     string responseWithRef = finalResponse.ToString();
                     _chatHistory.Add(new { role = "assistant", content = responseWithRef });
                     PrintChatMessage("AI", responseWithRef);
-        
+
                     PrintExecutionTime(sw.Elapsed);
                     PrintTokenUsage(result.PromptEvalCount, result.EvalCount);
                     PrintGenerationInfo(result);
@@ -1513,12 +1531,12 @@ Convert natural language intent into potential technical keywords (English/Korea
             var messages = new List<object>();
             if (!string.IsNullOrWhiteSpace(systemPrompt)) messages.Add(new { role = "system", content = systemPrompt });
             messages.Add(new { role = "user", content = userPrompt, images = base64Image != null ? new[] { base64Image } : null });
-            
-            var requestData = new 
-            { 
-                model = modelName, 
-                messages = messages, 
-                stream = false ,
+
+            var requestData = new
+            {
+                model = modelName,
+                messages = messages,
+                stream = false,
                 options = new { num_ctx = Num_ctx, temperature = Temperature }
             };
 
@@ -1849,7 +1867,7 @@ Convert natural language intent into potential technical keywords (English/Korea
         {
             BRAIN_MODEL = cboModelList.EditValue == null ? "" : cboModelList.EditValue.ToString().ToLower();
 
-            if (_isLoading) 
+            if (_isLoading)
                 return;
 
             SaveDefaultSetting();
@@ -1876,7 +1894,7 @@ Convert natural language intent into potential technical keywords (English/Korea
 
         private class SystemPrompt
         {
-            public string Title {  get; set; }
+            public string Title { get; set; }
             public string Contents { get; set; }
         }
 
@@ -2010,7 +2028,7 @@ Contents = excluded.Contents;";
             if (txtNumCtxGB.EditValue == null)
                 return;
 
-            if(int.TryParse(txtNumCtxGB.EditValue.ToString(), out int gb))
+            if (int.TryParse(txtNumCtxGB.EditValue.ToString(), out int gb))
             {
                 txtNum_ctx.EditValue = gb * 1024;
             }
