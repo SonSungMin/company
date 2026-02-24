@@ -55,6 +55,14 @@ namespace DevTools.UI.Control
 
         void SetMsg(string msg)
         {
+            // UI 스레드에서 호출해야 하는지 확인
+            if (this.InvokeRequired)
+            {
+                this.Invoke((MethodInvoker)delegate { SetMsg(msg); });
+                return;
+            }
+        
+            // 실제 UI 업데이트 로직
             msg = $"[{DateTime.Now.ToString("HH:mm:ss")}] {msg}";
             lstLog.Items.Add(msg);
         }
